@@ -175,7 +175,7 @@ export function QuickSaleScreen({ user, onSaleRecorded }: { user: User; onSaleRe
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         {visibleItems.map((item) => {
           const pricePointId = selectedPricePoint[item.id] ?? item.pricePoints[0]?.id ?? ''
           const pricePoint = item.pricePoints.find((point) => point.id === pricePointId) ?? item.pricePoints[0]
@@ -261,8 +261,8 @@ export function QuickSaleScreen({ user, onSaleRecorded }: { user: User; onSaleRe
         </section>
       )}
 
-      <div className="fixed inset-x-0 bottom-16 mx-auto max-w-md px-4">
-        <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface)] p-3 shadow-[var(--shadow-soft)]">
+      <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md px-4 md:bottom-4 md:left-64 md:right-0 md:max-w-none md:px-8">
+        <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface)] p-3 shadow-[var(--shadow-soft)] md:mx-auto md:max-w-5xl md:p-4">
           <div className="mb-2 flex items-center justify-between text-sm">
             <span className="text-[var(--muted)]">{itemCount} item{itemCount === 1 ? '' : 's'}</span>
             <span className="text-base font-semibold">{formatNaira(orderTotal)}</span>

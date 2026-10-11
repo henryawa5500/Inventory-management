@@ -19,7 +19,7 @@ export function LegalInformationScreen({
   onOpenPage?: (page: LegalPage) => void
 }) {
   return (
-    <main className="mx-auto min-h-screen max-w-2xl bg-[var(--app-bg)] px-5 py-8 text-[var(--text-color)]">
+    <main className="mx-auto min-h-screen w-full max-w-4xl bg-[var(--app-bg)] px-4 py-6 text-[var(--text-color)] sm:px-6 sm:py-8 lg:px-10">
       <button
         type="button"
         onClick={onBack}

@@ -105,7 +105,7 @@ export function SetupScreen({
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-[var(--app-bg)] px-5 pb-8 pt-8 text-[var(--text-color)]">
+    <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col bg-[var(--app-bg)] px-4 pb-8 pt-6 text-[var(--text-color)] sm:px-6 sm:pt-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Owner registration</p>

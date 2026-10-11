@@ -50,10 +50,18 @@ html, body, #root {
   margin: 0;
 }
 
+html {
+  min-width: 320px;
+  scroll-padding-top: 5rem;
+  scroll-padding-bottom: 6rem;
+}
+
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--app-bg);
   color: var(--text-color);
+  overflow-x: clip;
 }
 
 * { box-sizing: border-box; }
@@ -75,6 +83,22 @@ textarea {
 
 button {
   cursor: pointer;
+  touch-action: manipulation;
+}
+
+img, video, canvas, svg {
+  max-width: 100%;
+}
+
+input, select, textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 380px) {
+  :root {
+    --input-height: 44px;
+  }
 }
 
 button:focus-visible,
@@ -103,4 +127,3 @@ textarea::placeholder {
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-

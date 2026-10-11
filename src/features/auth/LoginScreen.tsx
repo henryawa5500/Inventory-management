@@ -33,8 +33,8 @@ export function LoginScreen({
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col justify-between bg-[var(--app-bg)] px-5 pb-10 pt-8 text-[var(--text-color)]">
-      <div>
+    <div className="flex min-h-screen flex-col justify-center bg-[var(--app-bg)] px-4 py-8 text-[var(--text-color)] sm:px-6">
+      <div className="mx-auto w-full max-w-md">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Bar operations · Made by Henry Me</p>

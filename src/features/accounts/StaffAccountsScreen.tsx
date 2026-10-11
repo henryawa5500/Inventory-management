@@ -115,7 +115,7 @@ export function StaffAccountsScreen() {
       </section>
 
       {formOpen && (
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4">
+        <form onSubmit={handleSubmit} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 lg:max-w-2xl">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold">{editingUser ? 'Edit staff account' : 'Create staff account'}</h3>
             <button
@@ -177,7 +177,7 @@ export function StaffAccountsScreen() {
 
       {error && !formOpen && <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
-      <section className="space-y-3">
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {staff === null ? (
           <p className="p-4 text-center text-sm text-[var(--muted)]">Loading staff accounts…</p>
         ) : staff.length === 0 ? (

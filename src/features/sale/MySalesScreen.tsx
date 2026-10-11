@@ -34,7 +34,7 @@ export function MySalesScreen({ user }: { user: User }) {
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {sales.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[var(--border-color)] bg-[var(--surface)] p-6 text-sm text-[var(--muted)]">
             No sales yet today.

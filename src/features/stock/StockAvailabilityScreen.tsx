@@ -277,7 +277,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
       {error && <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       {canManageInventory && itemFormOpen && (
-        <form onSubmit={handleSaveItem} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4">
+        <form onSubmit={handleSaveItem} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 xl:max-w-4xl">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-base font-semibold">{editingItem ? 'Edit inventory item' : 'New inventory item'}</h3>
             <button type="button" onClick={closeForms} aria-label="Close item form" className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-elevated)]"><X size={18} /></button>
@@ -386,7 +386,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
       )}
 
       {canManageInventory && stockItem && (
-        <form onSubmit={handleSaveStock} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4">
+        <form onSubmit={handleSaveStock} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 xl:max-w-4xl">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold">Record stock intake</h3>
@@ -419,7 +419,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
       )}
 
       {canManageInventory && adjustmentItem && (
-        <form onSubmit={handleSaveAdjustment} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4">
+        <form onSubmit={handleSaveAdjustment} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 xl:max-w-4xl">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold">Adjust stock count</h3>
@@ -456,7 +456,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
         {canManageInventory && <Chip active={showArchived} onClick={() => { setShowArchived((value) => !value); setShowOnlyLow(false) }}>Archived items</Chip>}
       </div>
 
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {rows.length === 0 ? (
           <EmptyState title={showArchived ? 'No archived items' : 'No inventory items'} body={canManageInventory ? 'Add an item to start managing your inventory.' : 'Try a different filter or search term.'} />
         ) : rows.map(({ item, level }) => (
