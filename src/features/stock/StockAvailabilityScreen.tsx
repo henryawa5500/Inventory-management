@@ -491,21 +491,21 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
             {canManageInventory && (
               <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border-color)] pt-3">
                 {!item.archived && item.trackStock && (
-                  <Button type="button" variant="secondary" onClick={() => { setStockItem(item); setAdjustmentItem(null); setEditingItem(null); setItemFormOpen(false); setStockForm(emptyStockForm); setError('') }}>
+                  <Button size="small" className="min-w-28 flex-1 px-3 text-center" type="button" variant="secondary" onClick={() => { setStockItem(item); setAdjustmentItem(null); setEditingItem(null); setItemFormOpen(false); setStockForm(emptyStockForm); setError('') }}>
                     <PackagePlus size={16} className="mr-2" /> Add stock
                   </Button>
                 )}
                 {!item.archived && item.trackStock && (
-                  <Button type="button" variant="secondary" onClick={() => { setAdjustmentItem(item); setStockItem(null); setEditingItem(null); setItemFormOpen(false); setAdjustmentForm({ countedQuantity: String(level.quantity), reason: '' }); setError('') }}>
+                  <Button size="small" className="min-w-28 flex-1 px-3 text-center" type="button" variant="secondary" onClick={() => { setAdjustmentItem(item); setStockItem(null); setEditingItem(null); setItemFormOpen(false); setAdjustmentForm({ countedQuantity: String(level.quantity), reason: '' }); setError('') }}>
                     Adjust count
                   </Button>
                 )}
                 {!item.archived && (
-                  <Button type="button" variant="secondary" onClick={() => openEditItem(item)}>
+                  <Button size="small" className="min-w-28 flex-1 px-3 text-center" type="button" variant="secondary" onClick={() => openEditItem(item)}>
                     <Pencil size={16} className="mr-2" /> Edit item
                   </Button>
                 )}
-                <Button type="button" variant="secondary" onClick={() => void handleArchive(item)}>
+                <Button size="small" className="min-w-28 flex-1 px-3 text-center" type="button" variant="secondary" onClick={() => void handleArchive(item)}>
                   {item.archived ? <ArchiveRestore size={16} className="mr-2" /> : <Archive size={16} className="mr-2" />}
                   {item.archived ? 'Restore' : 'Archive'}
                 </Button>

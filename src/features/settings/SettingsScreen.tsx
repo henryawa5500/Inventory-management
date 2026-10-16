@@ -5,10 +5,13 @@ import { Button } from '../../components/Button'
 import type { AppSettings, SaleRecord, User } from '../../domain/types'
 import { useInventoryRepository } from '../../data/repositoryContext'
 import { formatNaira } from '../../domain/money'
+import { exportLocalBackup } from '../../data/syncService'
 
 export function SettingsScreen({ user, onToggleTheme, theme }: { user: User; onToggleTheme: () => void; theme: string }) {
   const repository = useInventoryRepository()
   const [settings, setSettings] = useState<AppSettings | null>(null)
+  const [backupMessage, setBackupMessage] = useState('')
+  const [backupError, setBackupError] = useState('')
 
   useEffect(() => {
     ;(async () => {
@@ -21,6 +24,23 @@ export function SettingsScreen({ user, onToggleTheme, theme }: { user: User; onT
     const next = settings ? { ...settings, ...changes } : changes
     setSettings(next as AppSettings)
     repository.saveSettings(changes)
+  }
+
+  const downloadLocalBackup = async () => {
+    setBackupMessage('')
+    setBackupError('')
+    try {
+      const backup = await exportLocalBackup()
+      const url = URL.createObjectURL(new Blob([backup], { type: 'application/json' }))
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `dqueens-local-backup-${new Date().toISOString().slice(0, 10)}.json`
+      anchor.click()
+      URL.revokeObjectURL(url)
+      setBackupMessage('Local backup downloaded.')
+    } catch (caught) {
+      setBackupError(caught instanceof Error ? caught.message : 'Unable to export the local backup.')
+    }
   }
 
   return (
@@ -77,7 +97,7 @@ export function SettingsScreen({ user, onToggleTheme, theme }: { user: User; onT
               <ShieldCheck size={17} /> Notifications
             </Link>
           )}
-          {user.role === 'owner' && (
+          {user.role === 'owner' && repository.syncNow && (
             <Link to="/activity" className="flex min-h-12 items-center gap-3 text-sm hover:text-[var(--muted)]">
               <Activity size={17} /> Activity log
             </Link>
@@ -95,6 +115,17 @@ export function SettingsScreen({ user, onToggleTheme, theme }: { user: User; onT
         <p className="mt-3 text-center text-xs text-[var(--muted)]">D'Queens · Made by Henry Me</p>
       </section>
       {user.role === 'owner' && <SalesRecordManagement user={user} />}
+      {user.role === 'owner' && (
+        <section className="rounded-2xl border border-[var(--border-color)] bg-[var(--surface)] p-4">
+          <h3 className="text-sm font-semibold">Local data backup</h3>
+          <p className="mt-1 text-sm text-[var(--muted)]">Export the records currently stored on this device, including pending and rejected sync actions.</p>
+          {backupError && <p role="alert" className="mt-3 text-sm text-red-700">{backupError}</p>}
+          {backupMessage && <p role="status" className="mt-3 text-sm text-emerald-700">{backupMessage}</p>}
+          <Button className="mt-3" variant="secondary" fullWidth onClick={() => void downloadLocalBackup()}>
+            Download local backup
+          </Button>
+        </section>
+      )}
     </div>
   )
 }

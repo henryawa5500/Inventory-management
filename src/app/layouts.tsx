@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bell, LogOut, Package2, Settings, ShoppingBag, UsersRound } from 'lucide-react'
+import { Activity, BarChart3, Bell, LogOut, Package2, RefreshCw, Settings, ShoppingBag, UsersRound } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { SyncBadge } from '../components/SyncBadge'
@@ -10,11 +10,17 @@ export function StaffLayout({
   onLogout,
   online,
   waitingCount,
+  onSync,
+  syncing = false,
+  rejectedCount = 0,
 }: {
   user: { name: string; role: string }
-  onLogout: () => void
+  onLogout: () => void | Promise<void>
   online: boolean
   waitingCount: number
+  onSync?: () => void
+  syncing?: boolean
+  rejectedCount?: number
 }) {
   const repository = useInventoryRepository()
   const location = useLocation()
@@ -80,6 +86,18 @@ export function StaffLayout({
           <p className="hidden text-sm font-medium text-[var(--muted)] md:block">{user.name}</p>
           <div className="flex items-center gap-2">
             <SyncBadge online={online} waitingCount={waitingCount} />
+            {onSync && (
+              <button
+                type="button"
+                onClick={onSync}
+                disabled={!online || syncing}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border-color)] bg-[var(--surface)] px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+                <span className="hidden sm:inline">{syncing ? 'Syncing' : 'Sync now'}</span>
+                {rejectedCount > 0 && <span className="text-amber-700">{rejectedCount} issue{rejectedCount === 1 ? '' : 's'}</span>}
+              </button>
+            )}
             {canSeeNotifications && (
               <NavLink to="/notifications" aria-label={`${unreadCount} unread notifications`} className="relative rounded-full border border-[var(--border-color)] bg-[var(--surface)] p-2 text-[var(--muted)]">
                 <Bell size={16} />

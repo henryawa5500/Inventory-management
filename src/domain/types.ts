@@ -115,3 +115,13 @@ export type AppNotification = {
   createdAt: string
   readAt?: string
 }
+
+export type RejectedSyncAction = {
+  clientUuid: string
+  deviceId: string
+  userId: string
+  userName: string
+  actionType: string
+  reason: string
+  createdAt: string
+}

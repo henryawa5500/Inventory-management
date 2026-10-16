@@ -8,13 +8,27 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run",
+    "server": "node server/index.js",
+    "server:test": "node --test server/app.validation.js",
+    "db:migrate": "node server/migrate.js",
     "preview": "vite preview"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dexie": "^4.2.1",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
     "lucide-react": "^1.55.0",
+    "pg": "^8.16.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.4"
+    "react-router-dom": "^7.18.4",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
@@ -24,6 +38,7 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.6.1",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.1.2",
     "oxlint": "^1.81.0",
     "postcss": "^8.5.29",

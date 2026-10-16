@@ -160,7 +160,7 @@ export function StaffAccountsScreen() {
               type="password"
               autoComplete="new-password"
               required={!editingUser}
-              minLength={8}
+              minLength={12}
               value={form.password}
               onChange={(event) => setForm({ ...form, password: event.target.value })}
               placeholder={editingUser ? 'Leave blank to keep current password' : 'At least 8 characters'}

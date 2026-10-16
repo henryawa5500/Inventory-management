@@ -18,6 +18,7 @@ export function QuickSaleScreen({ user, onSaleRecorded }: { user: User; onSaleRe
   const [selectedPricePoint, setSelectedPricePoint] = useState<Record<string, string>>({})
   const [cart, setCart] = useState<Record<string, CartEntry>>({})
   const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({})
+  const [saleOpen, setSaleOpen] = useState(false)
   const [stockLevels, setStockLevels] = useState<Record<string, number>>({})
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -31,6 +32,15 @@ export function QuickSaleScreen({ user, onSaleRecorded }: { user: User; onSaleRe
       })
       .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Unable to load items.'))
   }, [repository])
+
+  useEffect(() => {
+    if (!saleOpen) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSaleOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [saleOpen])
 
   const visibleItems = useMemo(
     () => items.filter((item) => !item.archived).filter((item) => {
@@ -74,6 +84,7 @@ export function QuickSaleScreen({ user, onSaleRecorded }: { user: User; onSaleRe
       ...entries,
       [item.id]: { item, pricePointId, quantity: quantity + 1 },
     }))
+    setSaleOpen(true)
   }
 
   const setQuantity = (itemId: string, quantity: number) => {
@@ -134,6 +145,8 @@ export function QuickSaleScreen({ user, onSaleRecorded }: { user: User; onSaleRe
       })
       await repository.recordSale({ staffId: user.id, lines: saleLines, status: 'waiting' })
       setCart({})
+      setQuantityDrafts({})
+      setSaleOpen(false)
       onSaleRecorded(`Sale confirmed · ${formatNaira(orderTotal)}`)
       void repository.getStockLevels()
         .then((levels) => setStockLevels(Object.fromEntries(levels.map((level) => [level.itemId, level.quantity]))))
@@ -146,11 +159,18 @@ export function QuickSaleScreen({ user, onSaleRecorded }: { user: User; onSaleRe
   }
 
   return (
-    <div className="space-y-4 pb-40">
+    <div className="space-y-4 pb-12">
       <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">Quick sale</p>
         <h2 className="mt-1 text-2xl font-semibold tracking-tight">Create an order</h2>
-        <p className="mt-1 text-sm text-[var(--muted)]">Items remain pending until you confirm the sale.</p>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-[var(--muted)]">Items remain pending until you confirm the sale.</p>
+          {cartEntries.length > 0 && (
+            <Button size="small" variant="secondary" onClick={() => setSaleOpen(true)}>
+              Review order · {itemCount}
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
@@ -216,22 +236,44 @@ export function QuickSaleScreen({ user, onSaleRecorded }: { user: User; onSaleRe
         })}
       </div>
 
-      {cartEntries.length > 0 && (
-        <section aria-label="Pending sale" className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface)] p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Pending items</h3>
-            <button type="button" onClick={() => { setCart({}); setQuantityDrafts({}); setError('') }} className="flex items-center gap-1 text-sm text-[var(--muted)]">
-              <X size={16} /> Cancel sale
-            </button>
-          </div>
+      {saleOpen && cartEntries.length > 0 && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSaleOpen(false)
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pending-sale-title"
+            aria-label="Pending sale"
+            className="flex max-h-[90dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border border-[var(--border-color)] bg-[var(--surface)] shadow-2xl sm:rounded-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border-color)] p-4 sm:p-5">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted)]">Pending order</p>
+                <h3 id="pending-sale-title" className="mt-1 text-lg font-semibold">Review and confirm sale</h3>
+              </div>
+              <button type="button" aria-label="Close pending sale" onClick={() => setSaleOpen(false)} className="rounded-lg border border-[var(--border-color)] p-2 text-[var(--muted)] hover:bg-[var(--surface-elevated)]">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
+              {error && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
           {cartEntries.map((entry) => {
             const point = entry.item.pricePoints.find((option) => option.id === entry.pricePointId)!
             return (
-              <div key={entry.item.id} className="flex items-center justify-between gap-3 border-t border-[var(--border-color)] pt-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{entry.item.name}</p>
-                  <p className="text-xs text-[var(--muted)]">{point.label} · {formatNaira(point.priceKobo)} each</p>
-                  <p className="text-sm font-semibold">{formatNaira(point.priceKobo * entry.quantity)}</p>
+              <div key={entry.item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-color)] p-3">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-elevated)]">
+                    {entry.item.photo ? <img src={entry.item.photo} alt="" className="h-full w-full object-cover" /> : <ShoppingBag size={18} className="text-[var(--muted)]" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{entry.item.name}</p>
+                    <p className="text-xs text-[var(--muted)]">{point.label} · {formatNaira(point.priceKobo)} each</p>
+                    <p className="text-sm font-semibold">{formatNaira(point.priceKobo * entry.quantity)}</p>
+                  </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <button type="button" aria-label={`Decrease ${entry.item.name} quantity`} onClick={() => setQuantity(entry.item.id, entry.quantity - 1)} className="rounded-md border border-[var(--border-color)] p-1.5"><Minus size={14} /></button>
@@ -258,20 +300,24 @@ export function QuickSaleScreen({ user, onSaleRecorded }: { user: User; onSaleRe
               </div>
             )
           })}
-        </section>
-      )}
-
-      <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md px-4 md:bottom-4 md:left-64 md:right-0 md:max-w-none md:px-8">
-        <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface)] p-3 shadow-[var(--shadow-soft)] md:mx-auto md:max-w-5xl md:p-4">
-          <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="text-[var(--muted)]">{itemCount} item{itemCount === 1 ? '' : 's'}</span>
-            <span className="text-base font-semibold">{formatNaira(orderTotal)}</span>
-          </div>
-          <Button fullWidth onClick={() => void handleConfirmSale()} disabled={cartEntries.length === 0 || busy || hasInvalidQuantity}>
-            <ShoppingBag size={17} className="mr-2" /> {busy ? 'Confirming…' : 'Confirm sale'}
-          </Button>
+            </div>
+            <div className="space-y-3 border-t border-[var(--border-color)] bg-[var(--surface)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-[var(--muted)]">{itemCount} item{itemCount === 1 ? '' : 's'}</span>
+                <span className="text-lg font-semibold">{formatNaira(orderTotal)}</span>
+              </div>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                <Button variant="secondary" fullWidth onClick={() => { setCart({}); setQuantityDrafts({}); setSaleOpen(false); setError('') }}>
+                  Cancel sale
+                </Button>
+                <Button fullWidth onClick={() => void handleConfirmSale()} disabled={cartEntries.length === 0 || busy || hasInvalidQuantity}>
+                  <ShoppingBag size={17} className="mr-2" /> {busy ? 'Confirming…' : 'Confirm sale'}
+                </Button>
+              </div>
+            </div>
+          </section>
         </div>
-      </div>
+      )}
     </div>
   )
 }

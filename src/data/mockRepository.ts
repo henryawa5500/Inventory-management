@@ -474,6 +474,11 @@ const computeStockLevels = (): StockLevel[] => {
 }
 
 export const mockRepository: InventoryRepository = {
+  async getSetupStatus() {
+    await delay(100)
+    return state.users.some((user) => user.role === 'owner' && user.isActive)
+  },
+
   async listItems() {
     await delay(200)
     return [...state.items]
@@ -609,7 +614,9 @@ export const mockRepository: InventoryRepository = {
   async recordSale({ staffId, lines, status = 'waiting' }) {
     await delay(250)
     const staff = state.users.find((user) => user.id === staffId)
-    if (!staff || staff.role !== 'staff' || !staff.isActive) throw new Error('An active staff account is required to confirm a sale.')
+    if (!staff || !['owner', 'staff'].includes(staff.role) || !staff.isActive) {
+      throw new Error('An active owner or staff account is required to confirm a sale.')
+    }
     if (lines.length === 0) throw new Error('Add at least one item before confirming the sale.')
     const requestedByItem = new Map<string, number>()
     for (const line of lines) {

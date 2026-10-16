@@ -1,13 +1,17 @@
 export function Button({
   children,
   variant = 'primary',
+  size = 'default',
   fullWidth = false,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost'
+  size?: 'default' | 'small'
   fullWidth?: boolean
 }) {
-  const base = 'inline-flex items-center justify-center rounded-[12px] font-semibold text-sm tracking-[-0.01em] transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50'
+  const base = `inline-flex items-center justify-center rounded-[12px] font-semibold tracking-[-0.01em] transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
+    size === 'small' ? 'text-xs' : 'text-sm'
+  }`
   const variants = {
     primary: 'bg-[#111111] text-white border border-[#111111] shadow-[0_8px_18px_rgba(17,17,17,0.12)] hover:bg-[#1a1a1a] dark:bg-white dark:text-[#111111] dark:border-white dark:hover:bg-neutral-200',
     secondary: 'border border-[var(--border-color)] bg-[var(--surface)] text-[var(--text-color)] hover:bg-[var(--surface-elevated)]',
@@ -18,7 +22,7 @@ export function Button({
     <button
       {...props}
       className={`${base} ${variants[variant]} ${fullWidth ? 'w-full' : ''} ${props.className ?? ''}`}
-      style={{ minHeight: 48 }}
+      style={{ minHeight: size === 'small' ? 40 : 48, ...props.style }}
     >
       {children}
     </button>

@@ -76,10 +76,10 @@ export function SetupScreen({
           type={visible ? 'text' : 'password'}
           autoComplete={autoComplete}
           required
-          minLength={8}
+          minLength={12}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder={id === 'owner-password' ? 'At least 8 characters' : 'Re-enter your password'}
+          placeholder={id === 'owner-password' ? 'At least 12 characters' : 'Re-enter your password'}
           className="h-[var(--input-height)] w-full rounded-[12px] border border-[var(--border-color)] bg-[var(--app-bg-soft)] px-4 pr-11 text-base text-[var(--text-color)]"
         />
         <button

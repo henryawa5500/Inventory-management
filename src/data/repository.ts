@@ -3,6 +3,7 @@ import type {
   AppNotification,
   AuditEntry,
   Item,
+  RejectedSyncAction,
   SaleLine,
   SaleRecord,
   StockLevel,
@@ -11,6 +12,9 @@ import type {
 } from '../domain/types'
 
 export interface InventoryRepository {
+  getSetupStatus: () => Promise<boolean>
+  syncNow?: () => Promise<void>
+  listRejectedActions?: () => Promise<RejectedSyncAction[]>
   listItems: () => Promise<Item[]>
   getItem: (id: string) => Promise<Item | undefined>
   saveItem: (item: Partial<Item>, userId: string) => Promise<Item>

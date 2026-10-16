@@ -156,6 +156,38 @@ describe('mock repository sign-in', () => {
     await expect(reloadedRepository.listAuditLog()).resolves.toContainEqual(expect.objectContaining({ action: 'Confirmed sale' }))
   })
 
+  it('allows an owner to make a sale under their own account', async () => {
+    const item = await mockRepository.saveItem({
+      id: `owner-sale-${Date.now()}`,
+      name: 'Owner sale test item',
+      categoryId: 'others',
+      categoryName: 'Others',
+      baseUnit: 'plate',
+      packSize: 1,
+      trackStock: false,
+      costPriceKobo: 100,
+      reorderLevel: 0,
+      pricePoints: [{ id: 'plate', label: 'Plate', priceKobo: 500, baseUnitsUsed: 1 }],
+    }, 'manager')
+
+    const sale = await mockRepository.recordSale({
+      staffId: 'owner',
+      lines: [{
+        itemId: item.id,
+        itemName: item.name,
+        pricePointId: 'plate',
+        pricePointLabel: 'Plate',
+        quantity: 1,
+        unitPriceKobo: 500,
+        baseUnitsDeducted: 1,
+        totalKobo: 500,
+      }],
+    })
+
+    expect(sale).toMatchObject({ staffId: 'owner', staffName: 'Amaka Okafor' })
+    await expect(mockRepository.listSales()).resolves.toContainEqual(expect.objectContaining({ id: sale.id, staffId: 'owner' }))
+  })
+
   it('clears sales only after owner verification and retains the audit history', async () => {
     const item = await mockRepository.saveItem({
       id: `clear-test-${Date.now()}`,
