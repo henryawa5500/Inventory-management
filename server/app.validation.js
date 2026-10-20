@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { actionSchema, parseImage, safeInteger } from './app.js'
+import { actionSchema, ownerRegistrationSchema, parseImage, safeInteger } from './app.js'
 
 test('sync action envelopes require UUIDs and device metadata', () => {
   const parsed = actionSchema.safeParse({
@@ -20,6 +20,23 @@ test('sync action envelopes require UUIDs and device metadata', () => {
     payload: {},
   })
   assert.equal(invalid.success, false)
+})
+
+test('business registration validates required owner and business details without a public username', () => {
+  const registration = ownerRegistrationSchema.safeParse({
+    name: 'Business Owner',
+    email: 'owner@example.com',
+    password: 'a-long-registration-password',
+    businessName: 'Example Bar',
+  })
+  assert.equal(registration.success, true)
+
+  assert.equal(ownerRegistrationSchema.safeParse({
+    name: 'Business Owner',
+    email: 'not-an-email',
+    password: 'short',
+    businessName: 'Example Bar',
+  }).success, false)
 })
 
 test('compressed item images accept only supported formats and size limits', () => {

@@ -137,17 +137,7 @@ async function dataUrlToBlob(dataUrl: string) {
   return { blob, contentType: match[1] }
 }
 
-export const offlineRepository: InventoryRepository & {
-  getSetupStatus: () => Promise<boolean>
-  syncNow: () => Promise<void>
-} = {
-  async getSetupStatus() {
-    const cachedUsers = await localDatabase.users.toArray()
-    if (cachedUsers.some((user) => user.role === 'owner' && user.isActive)) return true
-    const status = await apiRequest<{ ownerExists: boolean }>('/auth/setup-status', {}, false)
-    return status.ownerExists
-  },
-
+export const offlineRepository: InventoryRepository & { syncNow: () => Promise<void> } = {
   async listItems() {
     const items = await localDatabase.items.toArray()
     return await Promise.all(items.map(hydrateItem))
@@ -549,10 +539,9 @@ export const offlineRepository: InventoryRepository & {
         method: 'POST',
         body: JSON.stringify({
           name: input.name,
-          username: input.username,
           email: input.email,
           password: input.password,
-          businessName: input.businessName?.trim() || 'D’Queens',
+          businessName: input.businessName?.trim(),
         }),
       }, false)
       await activateBusinessDatabase(response.user.businessId ?? '', response.user.id)

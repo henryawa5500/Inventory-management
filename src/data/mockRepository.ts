@@ -14,244 +14,6 @@ import type { InventoryRepository } from './repository'
 
 const delay = (ms = 250) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const now = new Date()
-const today = new Date(now)
-const yesterday = new Date(now)
-yesterday.setDate(yesterday.getDate() - 1)
-
-const categorySeed: Category[] = [
-  { id: 'green-bottle-beers', name: 'Green Bottle Beers', sortOrder: 1 },
-  { id: 'normal-beers', name: 'Normal Beers', sortOrder: 2 },
-  { id: 'soft-drinks', name: 'Soft Drinks', sortOrder: 3 },
-  { id: 'juice', name: 'Juice', sortOrder: 4 },
-  { id: 'palm-wine', name: 'Palm Wine', sortOrder: 5 },
-  { id: 'others', name: 'Others', sortOrder: 6 },
-  { id: 'food', name: 'Food', sortOrder: 7 },
-]
-
-const itemSeed: Item[] = [
-  {
-    id: 'green-60',
-    name: 'Green Bottle 60cl',
-    categoryId: 'green-bottle-beers',
-    categoryName: 'Green Bottle Beers',
-    baseUnit: 'bottle',
-    packSize: 12,
-    trackStock: true,
-    costPriceKobo: 7800,
-    reorderLevel: 10,
-    pricePoints: [{ id: 'bottle', label: 'Bottle', priceKobo: 2500, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'green-33',
-    name: 'Green Bottle 33cl',
-    categoryId: 'green-bottle-beers',
-    categoryName: 'Green Bottle Beers',
-    baseUnit: 'bottle',
-    packSize: 24,
-    trackStock: true,
-    costPriceKobo: 5200,
-    reorderLevel: 12,
-    pricePoints: [{ id: 'bottle', label: 'Bottle', priceKobo: 2000, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1622483767028-3f66f2b4624d?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'lager-50',
-    name: 'Lager 50cl',
-    categoryId: 'normal-beers',
-    categoryName: 'Normal Beers',
-    baseUnit: 'bottle',
-    packSize: 12,
-    trackStock: true,
-    costPriceKobo: 7200,
-    reorderLevel: 10,
-    pricePoints: [{ id: 'bottle', label: 'Bottle', priceKobo: 2600, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1532635241-17e820acc59f?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'stout-33',
-    name: 'Stout 33cl',
-    categoryId: 'normal-beers',
-    categoryName: 'Normal Beers',
-    baseUnit: 'bottle',
-    packSize: 24,
-    trackStock: true,
-    costPriceKobo: 6500,
-    reorderLevel: 18,
-    pricePoints: [{ id: 'bottle', label: 'Bottle', priceKobo: 2200, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1608270586620-248524c67de9?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'cola-50',
-    name: 'Cola 50cl',
-    categoryId: 'soft-drinks',
-    categoryName: 'Soft Drinks',
-    baseUnit: 'bottle',
-    packSize: 12,
-    trackStock: true,
-    costPriceKobo: 5800,
-    reorderLevel: 12,
-    pricePoints: [{ id: 'bottle', label: 'Bottle', priceKobo: 1800, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1622483767028-3f66f2b4624d?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'orange-soda',
-    name: 'Orange Soda 50cl',
-    categoryId: 'soft-drinks',
-    categoryName: 'Soft Drinks',
-    baseUnit: 'bottle',
-    packSize: 12,
-    trackStock: true,
-    costPriceKobo: 5600,
-    reorderLevel: 12,
-    pricePoints: [{ id: 'bottle', label: 'Bottle', priceKobo: 1900, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'malt-33',
-    name: 'Malt 33cl',
-    categoryId: 'soft-drinks',
-    categoryName: 'Soft Drinks',
-    baseUnit: 'bottle',
-    packSize: 24,
-    trackStock: true,
-    costPriceKobo: 6200,
-    reorderLevel: 8,
-    pricePoints: [{ id: 'bottle', label: 'Bottle', priceKobo: 2100, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'water-75',
-    name: 'Water 75cl',
-    categoryId: 'soft-drinks',
-    categoryName: 'Soft Drinks',
-    baseUnit: 'bottle',
-    packSize: 12,
-    trackStock: true,
-    costPriceKobo: 4300,
-    reorderLevel: 12,
-    pricePoints: [{ id: 'bottle', label: 'Bottle', priceKobo: 1500, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'orange-juice',
-    name: 'Orange Juice 1L',
-    categoryId: 'juice',
-    categoryName: 'Juice',
-    baseUnit: 'bottle',
-    packSize: 12,
-    trackStock: true,
-    costPriceKobo: 6400,
-    reorderLevel: 10,
-    pricePoints: [{ id: 'bottle', label: 'Bottle', priceKobo: 2200, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'palm-wine',
-    name: 'Palm Wine',
-    categoryId: 'palm-wine',
-    categoryName: 'Palm Wine',
-    baseUnit: 'cup',
-    packSize: 40,
-    trackStock: true,
-    costPriceKobo: 2600,
-    reorderLevel: 20,
-    pricePoints: [
-      { id: 'cup', label: 'Cup', priceKobo: 1200, baseUnitsUsed: 1 },
-      { id: 'bottle', label: 'Bottle', priceKobo: 4200, baseUnitsUsed: 4 },
-    ],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'energy-drink',
-    name: 'Energy Drink 33cl',
-    categoryId: 'others',
-    categoryName: 'Others',
-    baseUnit: 'bottle',
-    packSize: 24,
-    trackStock: true,
-    costPriceKobo: 7600,
-    reorderLevel: 12,
-    pricePoints: [{ id: 'bottle', label: 'Bottle', priceKobo: 2600, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'pepper-soup',
-    name: 'Pepper Soup',
-    categoryId: 'food',
-    categoryName: 'Food',
-    baseUnit: 'plate',
-    packSize: 1,
-    trackStock: false,
-    costPriceKobo: 1600,
-    reorderLevel: 0,
-    pricePoints: [{ id: 'plate', label: 'Plate', priceKobo: 3500, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'suya-plate',
-    name: 'Suya Plate',
-    categoryId: 'food',
-    categoryName: 'Food',
-    baseUnit: 'plate',
-    packSize: 1,
-    trackStock: false,
-    costPriceKobo: 2000,
-    reorderLevel: 0,
-    pricePoints: [{ id: 'plate', label: 'Plate', priceKobo: 4200, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1559847844-d7f939f52f83?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-  {
-    id: 'fried-rice',
-    name: 'Fried Rice and Chicken',
-    categoryId: 'food',
-    categoryName: 'Food',
-    baseUnit: 'plate',
-    packSize: 1,
-    trackStock: false,
-    costPriceKobo: 2600,
-    reorderLevel: 0,
-    pricePoints: [{ id: 'plate', label: 'Plate', priceKobo: 5500, baseUnitsUsed: 1 }],
-    archived: false,
-    photo: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80',
-    createdAt: new Date(yesterday).toISOString(),
-  },
-]
-
-const userSeed: User[] = [
-  { id: 'owner', name: 'Amaka Okafor', username: 'owner', password: 'password', role: 'owner', isActive: true, createdAt: new Date(yesterday).toISOString() },
-  { id: 'manager', name: 'Tunde Adekoya', username: 'manager', password: 'password', role: 'manager', isActive: true, createdAt: new Date(yesterday).toISOString() },
-  { id: 'staff-1', name: 'David Okon', username: 'staff1', password: 'password', role: 'staff', isActive: true, createdAt: new Date(yesterday).toISOString() },
-  { id: 'staff-2', name: 'Sola Bello', username: 'staff2', password: 'password', role: 'staff', isActive: true, createdAt: new Date(yesterday).toISOString() },
-]
-
 const USERS_STORAGE_KEY = 'dqueens-users'
 const SETTINGS_STORAGE_KEY = 'dqueens-settings'
 const ITEMS_STORAGE_KEY = 'dqueens-items'
@@ -260,6 +22,47 @@ const MOVEMENTS_STORAGE_KEY = 'dqueens-movements'
 const SALES_STORAGE_KEY = 'dqueens-sales'
 const AUDIT_STORAGE_KEY = 'dqueens-audit'
 const NOTIFICATIONS_STORAGE_KEY = 'dqueens-notifications'
+const MOCK_STORAGE_VERSION_KEY = 'dqueens-mock-data-version'
+const LEGACY_SEED_IDS: Record<string, Set<string>> = {
+  [USERS_STORAGE_KEY]: new Set(['owner', 'manager', 'staff-1', 'staff-2']),
+  [CATEGORIES_STORAGE_KEY]: new Set([
+    'green-bottle-beers', 'normal-beers', 'soft-drinks', 'juice', 'palm-wine', 'others', 'food',
+  ]),
+  [ITEMS_STORAGE_KEY]: new Set([
+    'green-60', 'green-33', 'lager-50', 'stout-33', 'cola-50', 'orange-soda', 'malt-33',
+    'water-75', 'orange-juice', 'palm-wine', 'energy-drink', 'pepper-soup', 'suya-plate',
+    'fried-rice',
+  ]),
+  [MOVEMENTS_STORAGE_KEY]: new Set(Array.from({ length: 27 }, (_, index) => `m-${String(index + 1).padStart(2, '0')}`)),
+  [SALES_STORAGE_KEY]: new Set(Array.from({ length: 12 }, (_, index) => `sale-${String(index + 1).padStart(2, '0')}`)),
+  [AUDIT_STORAGE_KEY]: new Set(['audit-1', 'audit-2']),
+}
+
+const removeLegacySeedRows = (key: string, seedIds: Set<string>) => {
+  const stored = localStorage.getItem(key)
+  if (stored === null) return
+
+  let rows: unknown
+  try {
+    rows = JSON.parse(stored)
+  } catch {
+    throw new Error(`Saved ${key.replace('dqueens-', '')} data is unreadable; sample data could not be removed safely.`)
+  }
+  if (!Array.isArray(rows)) {
+    throw new Error(`Saved ${key.replace('dqueens-', '')} data is invalid; sample data could not be removed safely.`)
+  }
+
+  const retained = rows.filter((row: unknown) =>
+    typeof row !== 'object' || row === null || !('id' in row)
+    || typeof row.id !== 'string' || !seedIds.has(row.id),
+  )
+  if (retained.length !== rows.length) localStorage.setItem(key, JSON.stringify(retained))
+}
+
+if (localStorage.getItem(MOCK_STORAGE_VERSION_KEY) !== '3') {
+  for (const [key, seedIds] of Object.entries(LEGACY_SEED_IDS)) removeLegacySeedRows(key, seedIds)
+  localStorage.setItem(MOCK_STORAGE_VERSION_KEY, '3')
+}
 
 type CredentialUser = User & { passwordHash?: string; passwordSalt?: string }
 
@@ -279,30 +82,27 @@ const hashPassword = async (password: string, salt = crypto.getRandomValues(new 
 
 const loadUsers = (): CredentialUser[] => {
   const stored = localStorage.getItem(USERS_STORAGE_KEY)
-  if (stored === null) return [...userSeed]
+  if (stored === null) return []
 
   let users: unknown
   try {
     users = JSON.parse(stored)
   } catch {
-    throw new Error('Saved account data is unreadable. Clear this site’s data to restore demo accounts.')
+    throw new Error('Saved account data is unreadable.')
   }
 
   if (!Array.isArray(users) || !users.every((user) =>
     typeof user === 'object' && user !== null &&
     typeof user.id === 'string' && typeof user.name === 'string' &&
     typeof user.username === 'string' &&
-    (typeof user.password === 'string' || (typeof user.passwordHash === 'string' && typeof user.passwordSalt === 'string')) &&
+    typeof user.passwordHash === 'string' && typeof user.passwordSalt === 'string' &&
     (user.role === 'owner' || user.role === 'manager' || user.role === 'staff') &&
     typeof user.isActive === 'boolean' && typeof user.createdAt === 'string'
   )) {
-    throw new Error('Saved account data is invalid. Clear this site’s data to restore demo accounts.')
+    throw new Error('Saved account data is invalid.')
   }
 
-  return users.map((user) => {
-    const savedUser = user as CredentialUser
-    return { ...savedUser, password: savedUser.password ?? '' }
-  })
+  return users.map((user) => ({ ...(user as CredentialUser), password: '' }))
 }
 
 const persistUsers = async (users: CredentialUser[]): Promise<CredentialUser[]> => {
@@ -327,70 +127,20 @@ const loadSettings = (): AppSettings => {
   }
 }
 
-const loadCollection = <T,>(key: string, seed: T[]): T[] => {
+const loadCollection = <T,>(key: string): T[] => {
   const stored = localStorage.getItem(key)
-  if (stored === null) return [...seed]
+  if (stored === null) return []
   try {
     const parsed: unknown = JSON.parse(stored)
     if (!Array.isArray(parsed)) throw new Error('Expected a list')
     return parsed as T[]
   } catch {
-    throw new Error(`Saved ${key.replace('dqueens-', '')} data is unreadable. Clear this site's data to restore demo records.`)
+    throw new Error(`Saved ${key.replace('dqueens-', '')} data is unreadable.`)
   }
 }
 
-const stockMovements: StockMovement[] = [
-  { id: 'm-01', itemId: 'green-60', itemName: 'Green Bottle 60cl', type: 'opening', quantityChange: 18, description: 'Opening stock', createdAt: new Date(yesterday.getTime() - 2 * 86400000).toISOString(), userId: 'owner' },
-  { id: 'm-02', itemId: 'green-60', itemName: 'Green Bottle 60cl', type: 'purchase', quantityChange: 24, description: 'Crate purchase', createdAt: new Date(yesterday.getTime() - 86400000).toISOString(), userId: 'manager', unitCostKobo: 8400 },
-  { id: 'm-03', itemId: 'green-60', itemName: 'Green Bottle 60cl', type: 'sale', quantityChange: -8, description: 'Quick sale', createdAt: new Date(yesterday).toISOString(), userId: 'staff-1' },
-  { id: 'm-04', itemId: 'green-60', itemName: 'Green Bottle 60cl', type: 'sale', quantityChange: -5, description: 'Quick sale', createdAt: new Date(today).toISOString(), userId: 'staff-2' },
-  { id: 'm-05', itemId: 'green-33', itemName: 'Green Bottle 33cl', type: 'opening', quantityChange: 20, description: 'Opening stock', createdAt: new Date(yesterday.getTime() - 2 * 86400000).toISOString(), userId: 'owner' },
-  { id: 'm-06', itemId: 'green-33', itemName: 'Green Bottle 33cl', type: 'purchase', quantityChange: 18, description: 'Supplier restock', createdAt: new Date(yesterday.getTime() - 86400000).toISOString(), userId: 'manager', unitCostKobo: 6500 },
-  { id: 'm-07', itemId: 'green-33', itemName: 'Green Bottle 33cl', type: 'sale', quantityChange: -6, description: 'Quick sale', createdAt: new Date(yesterday).toISOString(), userId: 'staff-1' },
-  { id: 'm-08', itemId: 'green-33', itemName: 'Green Bottle 33cl', type: 'sale', quantityChange: -4, description: 'Quick sale', createdAt: new Date(today).toISOString(), userId: 'staff-2' },
-  { id: 'm-09', itemId: 'lager-50', itemName: 'Lager 50cl', type: 'opening', quantityChange: 12, description: 'Opening stock', createdAt: new Date(yesterday.getTime() - 2 * 86400000).toISOString(), userId: 'owner' },
-  { id: 'm-10', itemId: 'lager-50', itemName: 'Lager 50cl', type: 'purchase', quantityChange: 12, description: 'Crate purchase', createdAt: new Date(yesterday.getTime() - 86400000).toISOString(), userId: 'manager', unitCostKobo: 7800 },
-  { id: 'm-11', itemId: 'lager-50', itemName: 'Lager 50cl', type: 'sale', quantityChange: -7, description: 'Staff sale', createdAt: new Date(yesterday).toISOString(), userId: 'staff-1' },
-  { id: 'm-12', itemId: 'lager-50', itemName: 'Lager 50cl', type: 'sale', quantityChange: -9, description: 'Staff sale', createdAt: new Date(today).toISOString(), userId: 'staff-2' },
-  { id: 'm-13', itemId: 'cola-50', itemName: 'Cola 50cl', type: 'opening', quantityChange: 13, description: 'Opening stock', createdAt: new Date(yesterday.getTime() - 2 * 86400000).toISOString(), userId: 'owner' },
-  { id: 'm-14', itemId: 'cola-50', itemName: 'Cola 50cl', type: 'purchase', quantityChange: 10, description: 'Stock in', createdAt: new Date(yesterday.getTime() - 86400000).toISOString(), userId: 'manager', unitCostKobo: 6000 },
-  { id: 'm-15', itemId: 'cola-50', itemName: 'Cola 50cl', type: 'sale', quantityChange: -4, description: 'Quick sale', createdAt: new Date(today).toISOString(), userId: 'staff-1' },
-  { id: 'm-16', itemId: 'orange-soda', itemName: 'Orange Soda 50cl', type: 'opening', quantityChange: 10, description: 'Opening stock', createdAt: new Date(yesterday.getTime() - 2 * 86400000).toISOString(), userId: 'owner' },
-  { id: 'm-17', itemId: 'orange-soda', itemName: 'Orange Soda 50cl', type: 'purchase', quantityChange: 12, description: 'Top-up', createdAt: new Date(yesterday).toISOString(), userId: 'manager', unitCostKobo: 6200 },
-  { id: 'm-18', itemId: 'malt-33', itemName: 'Malt 33cl', type: 'opening', quantityChange: 6, description: 'Opening stock', createdAt: new Date(yesterday.getTime() - 2 * 86400000).toISOString(), userId: 'owner' },
-  { id: 'm-19', itemId: 'malt-33', itemName: 'Malt 33cl', type: 'purchase', quantityChange: 8, description: 'Restock', createdAt: new Date(yesterday).toISOString(), userId: 'manager', unitCostKobo: 6800 },
-  { id: 'm-20', itemId: 'water-75', itemName: 'Water 75cl', type: 'opening', quantityChange: 14, description: 'Opening stock', createdAt: new Date(yesterday.getTime() - 2 * 86400000).toISOString(), userId: 'owner' },
-  { id: 'm-21', itemId: 'water-75', itemName: 'Water 75cl', type: 'purchase', quantityChange: 12, description: 'Crate purchase', createdAt: new Date(yesterday).toISOString(), userId: 'manager', unitCostKobo: 4200 },
-  { id: 'm-22', itemId: 'orange-juice', itemName: 'Orange Juice 1L', type: 'opening', quantityChange: 9, description: 'Opening stock', createdAt: new Date(yesterday.getTime() - 2 * 86400000).toISOString(), userId: 'owner' },
-  { id: 'm-23', itemId: 'orange-juice', itemName: 'Orange Juice 1L', type: 'purchase', quantityChange: 12, description: 'Crate purchase', createdAt: new Date(yesterday).toISOString(), userId: 'manager', unitCostKobo: 6500 },
-  { id: 'm-24', itemId: 'palm-wine', itemName: 'Palm Wine', type: 'opening', quantityChange: 30, description: 'Opening keg', createdAt: new Date(yesterday.getTime() - 2 * 86400000).toISOString(), userId: 'owner' },
-  { id: 'm-25', itemId: 'palm-wine', itemName: 'Palm Wine', type: 'purchase', quantityChange: 20, description: 'Keg refill', createdAt: new Date(yesterday).toISOString(), userId: 'manager', unitCostKobo: 4200 },
-  { id: 'm-26', itemId: 'energy-drink', itemName: 'Energy Drink 33cl', type: 'opening', quantityChange: 15, description: 'Opening stock', createdAt: new Date(yesterday.getTime() - 2 * 86400000).toISOString(), userId: 'owner' },
-  { id: 'm-27', itemId: 'energy-drink', itemName: 'Energy Drink 33cl', type: 'purchase', quantityChange: 20, description: 'Top-up order', createdAt: new Date(yesterday).toISOString(), userId: 'manager', unitCostKobo: 7600 },
-]
-
-const sales: SaleRecord[] = [
-  { id: 'sale-01', staffId: 'staff-1', staffName: 'David Okon', createdAt: new Date(yesterday.getTime() + 3 * 3600000).toISOString(), totalKobo: 9500, status: 'synced', lines: [{ itemId: 'green-60', itemName: 'Green Bottle 60cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 2500, baseUnitsDeducted: 1, totalKobo: 5000 }, { itemId: 'cola-50', itemName: 'Cola 50cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 1800, baseUnitsDeducted: 1, totalKobo: 3600 }, { itemId: 'pepper-soup', itemName: 'Pepper Soup', pricePointId: 'plate', pricePointLabel: 'Plate', quantity: 1, unitPriceKobo: 3500, baseUnitsDeducted: 1, totalKobo: 3500 }] },
-  { id: 'sale-02', staffId: 'staff-1', staffName: 'David Okon', createdAt: new Date(yesterday.getTime() + 5 * 3600000).toISOString(), totalKobo: 9200, status: 'synced', lines: [{ itemId: 'palm-wine', itemName: 'Palm Wine', pricePointId: 'cup', pricePointLabel: 'Cup', quantity: 4, unitPriceKobo: 1200, baseUnitsDeducted: 1, totalKobo: 4800 }, { itemId: 'malt-33', itemName: 'Malt 33cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 2100, baseUnitsDeducted: 1, totalKobo: 4200 }] },
-  { id: 'sale-03', staffId: 'staff-2', staffName: 'Sola Bello', createdAt: new Date(yesterday.getTime() + 7.5 * 3600000).toISOString(), totalKobo: 10700, status: 'waiting', lines: [{ itemId: 'lager-50', itemName: 'Lager 50cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 3, unitPriceKobo: 2600, baseUnitsDeducted: 1, totalKobo: 7800 }, { itemId: 'water-75', itemName: 'Water 75cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 1, unitPriceKobo: 1500, baseUnitsDeducted: 1, totalKobo: 1500 }, { itemId: 'suya-plate', itemName: 'Suya Plate', pricePointId: 'plate', pricePointLabel: 'Plate', quantity: 1, unitPriceKobo: 4200, baseUnitsDeducted: 1, totalKobo: 4200 }] },
-  { id: 'sale-04', staffId: 'staff-1', staffName: 'David Okon', createdAt: new Date(today.getTime() + 1 * 3600000).toISOString(), totalKobo: 6100, status: 'synced', lines: [{ itemId: 'orange-soda', itemName: 'Orange Soda 50cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 1900, baseUnitsDeducted: 1, totalKobo: 3800 }, { itemId: 'fried-rice', itemName: 'Fried Rice and Chicken', pricePointId: 'plate', pricePointLabel: 'Plate', quantity: 1, unitPriceKobo: 5500, baseUnitsDeducted: 1, totalKobo: 5500 }] },
-  { id: 'sale-05', staffId: 'staff-2', staffName: 'Sola Bello', createdAt: new Date(today.getTime() + 1.5 * 3600000).toISOString(), totalKobo: 7900, status: 'waiting', lines: [{ itemId: 'green-33', itemName: 'Green Bottle 33cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 2000, baseUnitsDeducted: 1, totalKobo: 4000 }, { itemId: 'energy-drink', itemName: 'Energy Drink 33cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 2600, baseUnitsDeducted: 1, totalKobo: 5200 }] },
-  { id: 'sale-06', staffId: 'staff-1', staffName: 'David Okon', createdAt: new Date(today.getTime() + 2 * 3600000).toISOString(), totalKobo: 8400, status: 'synced', lines: [{ itemId: 'palm-wine', itemName: 'Palm Wine', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 4200, baseUnitsDeducted: 4, totalKobo: 8400 }] },
-  { id: 'sale-07', staffId: 'staff-2', staffName: 'Sola Bello', createdAt: new Date(today.getTime() + 3 * 3600000).toISOString(), totalKobo: 6200, status: 'synced', lines: [{ itemId: 'water-75', itemName: 'Water 75cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 1500, baseUnitsDeducted: 1, totalKobo: 3000 }, { itemId: 'orange-juice', itemName: 'Orange Juice 1L', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 2200, baseUnitsDeducted: 1, totalKobo: 4400 }] },
-  { id: 'sale-08', staffId: 'staff-1', staffName: 'David Okon', createdAt: new Date(today.getTime() + 4 * 3600000).toISOString(), totalKobo: 6900, status: 'synced', lines: [{ itemId: 'lager-50', itemName: 'Lager 50cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 2600, baseUnitsDeducted: 1, totalKobo: 5200 }, { itemId: 'pepper-soup', itemName: 'Pepper Soup', pricePointId: 'plate', pricePointLabel: 'Plate', quantity: 1, unitPriceKobo: 3500, baseUnitsDeducted: 1, totalKobo: 3500 }] },
-  { id: 'sale-09', staffId: 'staff-2', staffName: 'Sola Bello', createdAt: new Date(today.getTime() + 5 * 3600000).toISOString(), totalKobo: 5100, status: 'waiting', lines: [{ itemId: 'malt-33', itemName: 'Malt 33cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 1, unitPriceKobo: 2100, baseUnitsDeducted: 1, totalKobo: 2100 }, { itemId: 'green-60', itemName: 'Green Bottle 60cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 1, unitPriceKobo: 2500, baseUnitsDeducted: 1, totalKobo: 2500 }, { itemId: 'suya-plate', itemName: 'Suya Plate', pricePointId: 'plate', pricePointLabel: 'Plate', quantity: 1, unitPriceKobo: 4200, baseUnitsDeducted: 1, totalKobo: 4200 }] },
-  { id: 'sale-10', staffId: 'staff-1', staffName: 'David Okon', createdAt: new Date(today.getTime() + 6 * 3600000).toISOString(), totalKobo: 7800, status: 'synced', lines: [{ itemId: 'cola-50', itemName: 'Cola 50cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 3, unitPriceKobo: 1800, baseUnitsDeducted: 1, totalKobo: 5400 }, { itemId: 'fried-rice', itemName: 'Fried Rice and Chicken', pricePointId: 'plate', pricePointLabel: 'Plate', quantity: 1, unitPriceKobo: 5500, baseUnitsDeducted: 1, totalKobo: 5500 }] },
-  { id: 'sale-11', staffId: 'staff-2', staffName: 'Sola Bello', createdAt: new Date(today.getTime() + 7 * 3600000).toISOString(), totalKobo: 7300, status: 'synced', lines: [{ itemId: 'orange-soda', itemName: 'Orange Soda 50cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 1900, baseUnitsDeducted: 1, totalKobo: 3800 }, { itemId: 'green-60', itemName: 'Green Bottle 60cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 1, unitPriceKobo: 2500, baseUnitsDeducted: 1, totalKobo: 2500 }, { itemId: 'pepper-soup', itemName: 'Pepper Soup', pricePointId: 'plate', pricePointLabel: 'Plate', quantity: 1, unitPriceKobo: 3500, baseUnitsDeducted: 1, totalKobo: 3500 }] },
-  { id: 'sale-12', staffId: 'staff-1', staffName: 'David Okon', createdAt: new Date(today.getTime() + 8 * 3600000).toISOString(), totalKobo: 9800, status: 'synced', lines: [{ itemId: 'energy-drink', itemName: 'Energy Drink 33cl', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 2600, baseUnitsDeducted: 1, totalKobo: 5200 }, { itemId: 'orange-juice', itemName: 'Orange Juice 1L', pricePointId: 'bottle', pricePointLabel: 'Bottle', quantity: 2, unitPriceKobo: 2200, baseUnitsDeducted: 1, totalKobo: 4400 }] },
-]
-
-const auditLog: AuditEntry[] = [
-  { id: 'audit-1', userId: 'owner', userName: 'Amaka Okafor', userRole: 'owner', action: 'Updated price', what: 'Green Bottle 60cl', oldValue: '₦2,500', newValue: '₦2,700', createdAt: new Date(yesterday.getTime() - 12 * 3600000).toISOString() },
-  { id: 'audit-2', userId: 'manager', userName: 'Tunde Adekoya', userRole: 'manager', action: 'Created item', what: 'Rock City Water', oldValue: 'N/A', newValue: 'Created', createdAt: new Date(yesterday.getTime() - 6 * 3600000).toISOString() },
-]
-
 const settings: AppSettings = {
-  businessName: "D'Queens",
+  businessName: '',
   businessCutoff: '23:00',
   offlineSessionDays: 3,
   theme: 'dark',
@@ -399,14 +149,14 @@ const settings: AppSettings = {
 }
 
 const state = {
-  items: loadCollection(ITEMS_STORAGE_KEY, itemSeed),
-  categories: loadCollection(CATEGORIES_STORAGE_KEY, categorySeed),
-  users: loadUsers() as CredentialUser[],
-  stockMovements: loadCollection(MOVEMENTS_STORAGE_KEY, stockMovements),
-  sales: loadCollection(SALES_STORAGE_KEY, sales),
+  items: loadCollection<Item>(ITEMS_STORAGE_KEY),
+  categories: loadCollection<Category>(CATEGORIES_STORAGE_KEY),
+  users: loadUsers(),
+  stockMovements: loadCollection<StockMovement>(MOVEMENTS_STORAGE_KEY),
+  sales: loadCollection<SaleRecord>(SALES_STORAGE_KEY),
   settings: loadSettings(),
-  auditLog: loadCollection(AUDIT_STORAGE_KEY, auditLog),
-  notifications: loadCollection<AppNotification>(NOTIFICATIONS_STORAGE_KEY, []),
+  auditLog: loadCollection<AuditEntry>(AUDIT_STORAGE_KEY),
+  notifications: loadCollection<AppNotification>(NOTIFICATIONS_STORAGE_KEY),
 }
 
 const persistAuditEvent = (userId: string, action: string, what: string, oldValue: string, newValue: string) => {
@@ -441,7 +191,7 @@ const persistAuditEvent = (userId: string, action: string, what: string, oldValu
 }
 
 const verifyPassword = async (user: CredentialUser, password: string) => {
-  if (!user.passwordHash || !user.passwordSalt) return user.password === password
+  if (!user.passwordHash || !user.passwordSalt) return false
   return (await hashPassword(password, hexToBytes(user.passwordSalt))).passwordHash === user.passwordHash
 }
 
@@ -474,11 +224,6 @@ const computeStockLevels = (): StockLevel[] => {
 }
 
 export const mockRepository: InventoryRepository = {
-  async getSetupStatus() {
-    await delay(100)
-    return state.users.some((user) => user.role === 'owner' && user.isActive)
-  },
-
   async listItems() {
     await delay(200)
     return [...state.items]
@@ -801,28 +546,25 @@ export const mockRepository: InventoryRepository = {
     )
     if (!user) return undefined
 
-    const authenticated = user.passwordHash && user.passwordSalt
-      ? (await hashPassword(password, hexToBytes(user.passwordSalt))).passwordHash === user.passwordHash
-      : user.password === password
+    const authenticated = await verifyPassword(user, password)
     if (!authenticated) return undefined
-
-    if (!user.passwordHash || !user.passwordSalt) {
-      state.users = await persistUsers(state.users)
-      return state.users.find((entry) => entry.id === user.id)
-    }
     return user
   },
 
   async createUser(user) {
     await delay(120)
-    const username = user.username.trim()
+    const username = user.username?.trim() || `owner-${crypto.randomUUID()}`
     if (state.users.some((entry) => entry.username.toLowerCase() === username.toLowerCase())) {
       throw new Error('That username is already in use')
     }
+    const email = user.email?.trim().toLowerCase()
+    if (email && state.users.some((entry) => entry.email?.toLowerCase() === email)) {
+      throw new Error('Email already registered.')
+    }
     const created: CredentialUser = {
-      id: `user-${Date.now()}`,
+      id: crypto.randomUUID(),
       name: user.name.trim(),
-      ...(user.email ? { email: user.email.trim().toLowerCase() } : {}),
+      ...(email ? { email } : {}),
       username,
       password: user.password,
       role: user.role ?? 'staff',

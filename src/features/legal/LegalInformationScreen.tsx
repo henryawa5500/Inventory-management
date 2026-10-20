@@ -54,25 +54,25 @@ function PrivacyPolicy() {
   return (
     <article className="space-y-6 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-5">
       <PolicySection title="1. About this policy">
-        <p>This policy explains how the D'Queens bar operations app handles information. The app is currently a browser-based prototype. It is not connected to a production server, cloud image store, or payment processor.</p>
+        <p>This policy explains how the bar and inventory management app handles account and business information.</p>
       </PolicySection>
       <PolicySection title="2. Information handled by the app">
-        <p>Registration and account details may include an owner or staff member's name, email address (for owners), username, and password. Operational demo data can include inventory, stock movements, sales records, and the user who recorded an action.</p>
-        <p>Account records, salted PBKDF2 password verifiers, business settings, inventory, stock movements, sales, activity entries, notifications, and uploaded item images are saved in this browser's local storage so they remain available after a reload. The current session ID and selected theme are stored there as well. Uploaded images are compressed and remain in this browser; they are not uploaded to cloud storage. This client-side prototype does not provide production authentication, secure backups, or tamper-proof records. Browser data can be changed or removed by someone with access to the browser profile. Demo accounts and passwords are seeded for testing. Do not use real customer, staff, or business-sensitive information in this prototype.</p>
+        <p>Account details include a business name and the owner's name and email. Business operations can include menu items, stock movements, sales, staff accounts, activity entries, notifications, and item images.</p>
+        <p>Business records are stored by the service and separated by business. The app also stores a local offline copy in the browser so previously signed-in users can continue working without a connection. Passwords are hashed on the server; staff accounts are created by the business owner or an authorized manager. Keep account credentials private and protect devices that contain offline business data.</p>
       </PolicySection>
       <PolicySection title="3. How information is used">
-        <p>Information is used only to provide the app's account, inventory, staff-management, and sales-demo features. The current prototype does not submit registration or operational records to a D'Queens backend, and does not include analytics, advertising, or a payment service.</p>
+        <p>Information is used to provide account access, inventory, staff management, sales, notifications, activity history, and offline synchronization. The app does not process payments.</p>
       </PolicySection>
       <PolicySection title="4. Browser storage and third parties">
-        <p>The prototype uses local storage for the records described above and does not currently use advertising cookies. The Inter font is requested from Google Fonts and seeded demo product images are requested from Unsplash; those providers may receive standard connection data such as your IP address when the assets are requested. User-uploaded images are not sent to those providers. Their privacy practices are governed by their own policies.</p>
+        <p>The browser stores a session, selected display preferences, and offline business data. The app uses hosting, database, and font services to operate; those providers may receive standard connection data when the app is used. Review the service operator's current provider list and privacy practices for details.</p>
       </PolicySection>
       <PolicySection title="5. Security and retention">
-        <p>This prototype is not designed for production credentials or confidential data. Passwords are verified with salted PBKDF2 hashes, but client-side authentication is not a substitute for a secure server-side identity system and browser-local activity entries are not tamper-proof. There are no durable backups or production administrative security controls. An owner can download or print a date-range sales report, then clear sales for that range after re-entering the owner password. Sales are not cleared automatically; stock movement and activity history are retained by that action. Clearing browser site data removes all locally stored records.</p>
+        <p>Access is controlled by account roles, and business records are scoped to the authenticated business. Offline browser data remains accessible to people with access to that browser profile. Keep independent backups of important records. An owner can download or print a date-range sales report, then clear sales for that range after re-entering the owner password. Sales are not cleared automatically; stock movement and activity history are retained by that action. Clearing browser site data removes that device's local copy.</p>
       </PolicySection>
       <PolicySection title="6. Your choices and contact">
-        <p>Do not enter real personal or business-sensitive information until a production service with appropriate safeguards is available. For questions about this prototype or a data request, contact the D'Queens business owner or the administrator who provided access. No dedicated privacy contact address has been provided in this release.</p>
+        <p>For account access, data corrections, or privacy requests, contact your business owner or the service administrator. A dedicated privacy contact address should be supplied by the service operator.</p>
       </PolicySection>
-      <p className="border-t border-[var(--border-color)] pt-4 text-xs text-[var(--muted)]">This prototype notice is informational and is not legal advice or a substitute for a jurisdiction-specific privacy review before public production use.</p>
+      <p className="border-t border-[var(--border-color)] pt-4 text-xs text-[var(--muted)]">This notice is informational and should be reviewed by the service operator for the applicable jurisdictions.</p>
     </article>
   )
 }
@@ -80,22 +80,22 @@ function PrivacyPolicy() {
 function TermsOfUse() {
   return (
     <article className="space-y-6 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-5">
-      <PolicySection title="1. Prototype service">
-        <p>D'Queens is a bar operations and inventory-management prototype made by Henry Me. It is provided for demonstration and evaluation. Features and sample records may change or reset without notice.</p>
+      <PolicySection title="1. Service">
+        <p>The app provides business owners and authorized staff with bar operations and inventory-management tools.</p>
       </PolicySection>
       <PolicySection title="2. Account responsibilities">
-        <p>Use only an account assigned or created by the business owner or an authorized manager. Keep credentials private, sign out on shared devices, and promptly notify the business administrator if an account may have been misused. Do not attempt to access another user's account or bypass role restrictions.</p>
+        <p>Owners register their business. Staff accounts are created by the business owner or an authorized manager. Keep credentials private, sign out on shared devices, and promptly notify the business administrator if an account may have been misused. Do not attempt to access another business's data or bypass role restrictions.</p>
       </PolicySection>
       <PolicySection title="3. Acceptable use and data">
-        <p>Do not use this prototype to process real payments, maintain the only copy of business records, or store sensitive personal information. Demo sales are not payment records. You are responsible for verifying inventory and transaction information before relying on it operationally.</p>
+        <p>The app does not process payments. Maintain appropriate business records and backups, and verify inventory and transaction information before relying on it operationally.</p>
       </PolicySection>
       <PolicySection title="4. Availability and warranty">
-        <p>The prototype is provided “as is” and “as available,” without a guarantee of uninterrupted operation, accuracy, data persistence, or fitness for a particular purpose. Browser-local records can be lost, altered, or cleared and are not backed up. These terms do not limit rights that cannot lawfully be excluded.</p>
+        <p>The service is provided “as is” and “as available,” without a guarantee of uninterrupted operation, accuracy, data persistence, or fitness for a particular purpose. Browser-local records can be lost, altered, or cleared. These terms do not limit rights that cannot lawfully be excluded.</p>
       </PolicySection>
       <PolicySection title="5. Changes and contact">
-        <p>The app may be updated or withdrawn as it develops. For account access or questions, contact the D'Queens business owner or the administrator who provided access. Before public production launch, these terms should be reviewed and updated with the operator's legal identity, support contact, governing law, and applicable consumer rights.</p>
+        <p>The app may be updated or withdrawn as it develops. For account access or questions, contact your business administrator. The service operator should provide its legal identity, support contact, governing law, and applicable consumer rights.</p>
       </PolicySection>
-      <p className="border-t border-[var(--border-color)] pt-4 text-xs text-[var(--muted)]">Effective 11 October 2026. This prototype notice is informational, not legal advice.</p>
+      <p className="border-t border-[var(--border-color)] pt-4 text-xs text-[var(--muted)]">Effective 20 October 2026. This notice is informational, not legal advice.</p>
     </article>
   )
 }
@@ -104,11 +104,11 @@ function AboutSupport({ onOpenPage }: { onOpenPage?: (page: LegalPage) => void }
   return (
     <article className="space-y-6 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-5">
       <PolicySection title="Product">
-        <p><strong>{APP_NAME}</strong> is a bar operations and inventory-management app for D'Queens.</p>
-        <p>{APP_CREDIT}. This build is a prototype with seeded sample data and browser-local storage. Uploaded item images are stored on this device only.</p>
+        <p><strong>{APP_NAME}</strong> is a multi-business bar operations and inventory-management app.</p>
+        <p>{APP_CREDIT}. Each business has separate records. Item images are stored with the business record and cached on the device for offline use.</p>
       </PolicySection>
       <PolicySection title="Support">
-        <p>For account access, corrections, or operational support, contact the D'Queens owner or the administrator who gave you access. A support email or phone number has not yet been configured.</p>
+        <p>For account access, corrections, or operational support, contact your business owner or service administrator.</p>
       </PolicySection>
       <PolicySection title="Accessibility">
         <p>The app uses labeled form controls, keyboard-operable buttons, and visible focus indicators. If you encounter an accessibility barrier, please report it to the business administrator so it can be addressed.</p>

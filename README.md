@@ -15,7 +15,7 @@ npm install
 cp .env.example .env
 ```
 
-Set `DATABASE_URL` to a **new or approved PostgreSQL database** and replace `JWT_SECRET` with a randomly generated secret of at least 32 characters. The migration creates namespaced `app_*` tables and does not alter other existing tables. Review and back up the target database before running it; do not run a schema change against an existing production database without authorization.
+Set `DATABASE_URL` to the intended PostgreSQL database and replace `JWT_SECRET` with a randomly generated secret of at least 32 characters. The base schema creates the `app_*` tables. The business-tenancy migration adds `app_businesses` and tenant IDs to application tables, assigns existing application data to a legacy business, and preserves those records. Back up and confirm the database target before running the migration.
 
 ```sh
 npm run db:migrate
@@ -31,11 +31,11 @@ npm run server
 npm run dev
 ```
 
-The Vite development server proxies `/api` to `http://localhost:3001`. Set `VITE_DATA_MODE=api` in `.env` for the frontend to use the API and IndexedDB in development. Without that setting, development uses the seeded mock repository. In production, API mode is the default.
+The Vite development server proxies `/api` to `http://localhost:3001`; this proxy is development-only. Set `VITE_DATA_MODE=api` in `.env` for the frontend to use the API and IndexedDB in development. Without that setting, development uses an empty local mock repository. Production uses API mode by default.
 
-Open the app and register a business owner account. Multiple businesses can register in the same deployment; each gets its own inventory, staff, sales, settings, notifications and activity history. Usernames and email addresses must be unique across the entire deployment, so each account needs distinct login details. Owners can create staff accounts from the owner/manager staff screen; staff do not have public registration. Owner registration also creates starter inventory categories. The first login and owner setup require an internet connection; a previously authenticated user can use their cached data offline while their offline session remains valid.
+New visitors see business registration first, with a link to log in. Registration creates a business and its owner together, hashes the password, and signs the owner in. The owner login uses the registered email; the API creates an internal username. Email addresses must be unique across the deployment. Owners can create staff accounts from the dashboard; staff do not have public registration. New businesses receive starter categories but no sample items, stock, sales, users, or notifications. Add menu items from Stock and items.
 
-The tenancy migration creates a legacy business and assigns existing `app_*` records to it without deleting them. Review and back up the target database before applying it. The migration runs as part of `npm run db:migrate`; do not run that command against an existing database until you have confirmed the target and are ready to apply the schema change. Each signed-in business uses a separate browser IndexedDB database, so cached data and queued changes are not shared when a device switches businesses.
+Each signed-in business uses a separate browser IndexedDB database, so cached data and queued changes are not shared when a device switches businesses. On first load of the updated local mock repository, it removes only the known legacy sample rows from mock localStorage and preserves locally created accounts, inventory, sales, and activity.
 
 ## Environment variables
 
@@ -55,7 +55,36 @@ Never expose `DATABASE_URL` or `JWT_SECRET` as `VITE_*` variables.
 
 ## Deploying
 
-For Vercel, configure the project environment variables above, use the repository's Vite build, and deploy the included `/api/[...path]` function. Point `DATABASE_URL` at the intended PostgreSQL database and run `npm run db:migrate` against that database from a trusted environment. Do not put database credentials in frontend environment variables. The recommended deployment is same-origin (`/api`), which keeps the HttpOnly session cookies and CORS configuration straightforward.
+For Vercel:
+
+1. Set **Root Directory** to the repository root (`.`), so Vercel includes `api/` and `server/`.
+2. Add these **server environment variables** for Production (and Preview if used):
+   - `DATABASE_URL`: the Neon connection string.
+   - `JWT_SECRET`: a random secret of at least 32 characters (for example, generate one locally with `openssl rand -base64 48`).
+3. From a trusted terminal with the same `DATABASE_URL`, run `npm run db:migrate` once for that database. This applies `server/schema.sql` and `server/migrations/002-business-tenancy.sql`; do not run against an unconfirmed database.
+4. Redeploy the Vercel project after setting the variables and ensuring the deployment includes the API handler.
+
+Do not set either secret as a `VITE_*` variable. The API entry points forward requests to the shared Express app; explicit Vercel function wrappers cover nested endpoint paths, while `api/[...path].js` remains the fallback. `vercel.json` rewrites non-API browser routes to the SPA while leaving `/api/*` to the functions. Vite's `/api` proxy only applies during local development.
+
+The front end calls these API routes:
+
+| Method | Route |
+| --- | --- |
+| POST | `/api/auth/register-owner` |
+| POST | `/api/auth/login` |
+| POST | `/api/auth/refresh` |
+| POST | `/api/auth/logout` |
+| POST | `/api/users` |
+| PATCH | `/api/users/:id` |
+| DELETE | `/api/users/:id` |
+| GET | `/api/items/:id/image` |
+| POST | `/api/sync/push` |
+| GET | `/api/sync/pull` |
+| GET | `/api/sync/rejected` |
+| POST | `/api/notifications/read` |
+| POST | `/api/storage/clear-sales` |
+
+The obsolete `/api/auth/setup-status` route is not used; business registration is always open. For deployment smoke tests, `/api/health` should return JSON `{"status":"ok"}`. A nested route such as `POST /api/auth/register-owner` with an empty JSON body should return an Express JSON validation error, not a Vercel `NOT_FOUND`; if it does not, verify Root Directory and redeploy the latest commit.
 
 Images are compressed in the client and stored as PostgreSQL `bytea` data by this implementation; a separate object-storage provider is not configured.
 
@@ -76,7 +105,8 @@ Existing prototype data in browser local storage is not automatically imported i
 ## Main file layout
 
 ```text
-api/[...path].js             Vercel API entry point
+api/                         Vercel API entry points and nested route wrappers
+api/[...path].js             Shared Express handler and fallback
 server/app.js                Express routes, authentication, authorization and sync
 server/schema.sql            New app_* PostgreSQL tables and append-only trigger
 server/migrations/002-business-tenancy.sql

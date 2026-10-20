@@ -12,7 +12,6 @@ import type {
 } from '../domain/types'
 
 export interface InventoryRepository {
-  getSetupStatus: () => Promise<boolean>
   syncNow?: () => Promise<void>
   listRejectedActions?: () => Promise<RejectedSyncAction[]>
   listItems: () => Promise<Item[]>
@@ -31,7 +30,7 @@ export interface InventoryRepository {
   getStockLevels: () => Promise<StockLevel[]>
   listUsers: () => Promise<User[]>
   authenticateUser: (username: string, password: string) => Promise<User | undefined>
-  createUser: (user: Pick<User, 'name' | 'username' | 'password'> & Partial<Pick<User, 'email' | 'role' | 'isActive'>> & { businessName?: string }) => Promise<User>
+  createUser: (user: Pick<User, 'name' | 'password'> & Partial<Pick<User, 'email' | 'username' | 'role' | 'isActive'>> & { businessName?: string }) => Promise<User>
   updateUser: (id: string, changes: Pick<User, 'name' | 'username'> & Partial<Pick<User, 'password' | 'isActive'>>) => Promise<User>
   deleteUser: (id: string) => Promise<void>
   getSettings: () => Promise<AppSettings>

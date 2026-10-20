@@ -8,7 +8,6 @@ type RegistrationPayload = {
   name: string
   businessName: string
   email: string
-  username: string
   password: string
   role: 'owner'
 }
@@ -18,13 +17,11 @@ type RegistrationForm = Omit<RegistrationPayload, 'role'> & { confirmPassword: s
 export function SetupScreen({
   onCreate,
   onBackToLogin,
-  registrationAvailable,
   theme,
   onToggleTheme,
 }: {
   onCreate: (payload: RegistrationPayload) => Promise<void>
   onBackToLogin?: () => void
-  registrationAvailable: boolean
   theme: string
   onToggleTheme: () => void
 }) {
@@ -32,7 +29,6 @@ export function SetupScreen({
     name: '',
     businessName: '',
     email: '',
-    username: '',
     password: '',
     confirmPassword: '',
   })
@@ -124,24 +120,10 @@ export function SetupScreen({
       </div>
 
       <p className="mb-5 text-sm text-[var(--muted)]">
-        {registrationAvailable
-          ? 'Register your business and create its owner account. You can add staff accounts after signing in.'
-          : 'Public staff registration is disabled. Ask the business owner or manager to create your staff account.'}
+        Create your business and owner account. You can add staff accounts after signing in.
       </p>
 
-      {registrationAvailable && <form onSubmit={handleSubmit} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
-        <div>
-          <label htmlFor="owner-name" className="mb-1.5 block text-sm font-medium">Owner full name</label>
-          <input
-            id="owner-name"
-            autoComplete="name"
-            required
-            value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
-            placeholder="e.g. Jane Smith"
-            className="h-[var(--input-height)] w-full rounded-[12px] border border-[var(--border-color)] bg-[var(--app-bg-soft)] px-4 text-base text-[var(--text-color)]"
-          />
-        </div>
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
         <div>
           <label htmlFor="business-name" className="mb-1.5 block text-sm font-medium">Business name</label>
           <input
@@ -155,6 +137,18 @@ export function SetupScreen({
           />
         </div>
         <div>
+          <label htmlFor="owner-name" className="mb-1.5 block text-sm font-medium">Owner full name</label>
+          <input
+            id="owner-name"
+            autoComplete="name"
+            required
+            value={form.name}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
+            placeholder="e.g. Jane Smith"
+            className="h-[var(--input-height)] w-full rounded-[12px] border border-[var(--border-color)] bg-[var(--app-bg-soft)] px-4 text-base text-[var(--text-color)]"
+          />
+        </div>
+        <div>
           <label htmlFor="owner-email" className="mb-1.5 block text-sm font-medium">Email address</label>
           <input
             id="owner-email"
@@ -164,18 +158,6 @@ export function SetupScreen({
             value={form.email}
             onChange={(event) => setForm({ ...form, email: event.target.value })}
             placeholder="you@example.com"
-            className="h-[var(--input-height)] w-full rounded-[12px] border border-[var(--border-color)] bg-[var(--app-bg-soft)] px-4 text-base text-[var(--text-color)]"
-          />
-        </div>
-        <div>
-          <label htmlFor="owner-username" className="mb-1.5 block text-sm font-medium">Username</label>
-          <input
-            id="owner-username"
-            autoComplete="username"
-            required
-            value={form.username}
-            onChange={(event) => setForm({ ...form, username: event.target.value })}
-            placeholder="Choose a username"
             className="h-[var(--input-height)] w-full rounded-[12px] border border-[var(--border-color)] bg-[var(--app-bg-soft)] px-4 text-base text-[var(--text-color)]"
           />
         </div>
@@ -220,7 +202,7 @@ export function SetupScreen({
           {submitting ? 'Registering business…' : 'Register business'}
           {!submitting && <ArrowRight size={18} className="ml-2" />}
         </Button>
-      </form>}
+      </form>
 
       {onBackToLogin && (
         <button

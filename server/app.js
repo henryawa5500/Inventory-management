@@ -24,25 +24,31 @@ const refreshTokenLifetimeMs = 30 * 24 * 60 * 60 * 1000
 
 app.disable('x-powered-by')
 app.use(helmet())
-app.use(cors({
-  origin: (origin, callback) => {
-    const allowed = (process.env.CORS_ORIGINS ?? '')
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean)
-    if (!origin || allowed.includes(origin)) return callback(null, true)
-    return callback(new Error('This origin is not permitted by CORS.'))
-  },
-  credentials: true,
-}))
 app.use(cookieParser())
 app.use(express.json({ limit: '4mb' }))
 
-app.use((request, _response, next) => {
-  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method) || !request.get('origin')) return next()
-  const allowed = (process.env.CORS_ORIGINS ?? '').split(',').map((origin) => origin.trim()).filter(Boolean)
-  if (!allowed.includes(request.get('origin'))) return next(httpError(403, 'This origin is not permitted.'))
-  next()
+app.use((request, response, next) => {
+  const origin = request.get('origin')
+  if (!origin) return next()
+  let parsedOrigin
+  try {
+    parsedOrigin = new URL(origin)
+  } catch {
+    return next(httpError(403, 'This origin is not permitted.'))
+  }
+  const forwardedHost = request.get('x-forwarded-host')?.split(',')[0].trim()
+  const forwardedProtocol = request.get('x-forwarded-proto')?.split(',')[0].trim()
+  const requestHost = forwardedHost || request.get('host')
+  const requestProtocol = forwardedProtocol || request.protocol
+  const sameOrigin = parsedOrigin.origin === `${requestProtocol}://${requestHost}`
+  const localDevelopmentOrigin = process.env.NODE_ENV !== 'production'
+    && ['localhost', '127.0.0.1', '::1'].includes(parsedOrigin.hostname)
+    && ['localhost', '127.0.0.1', '::1'].includes(request.hostname)
+  const allowed = (process.env.CORS_ORIGINS ?? '').split(',').map((value) => value.trim()).filter(Boolean)
+  if (!sameOrigin && !localDevelopmentOrigin && !allowed.includes(origin)) {
+    return next(httpError(403, 'This origin is not permitted by CORS.'))
+  }
+  cors({ origin, credentials: true })(request, response, next)
 })
 
 const authLimiter = rateLimit({
@@ -68,7 +74,7 @@ function requireEnvironment() {
 function signToken(user) {
   requireEnvironment()
   return jwt.sign(
-    { role: user.role },
+    { businessId: user.businessId, role: user.role },
     process.env.JWT_SECRET,
     { subject: user.id, expiresIn: '7d', issuer: 'dqueens-api', audience: 'dqueens-app' },
   )
@@ -125,16 +131,22 @@ async function authenticate(request, response, next) {
       issuer: 'dqueens-api',
       audience: 'dqueens-app',
     })
-    if (typeof claims === 'string' || typeof claims.sub !== 'string') throw httpError(401, 'Invalid session.')
+    if (
+      typeof claims === 'string'
+      || typeof claims.sub !== 'string'
+      || typeof claims.businessId !== 'string'
+      || !roles.includes(claims.role)
+    ) throw httpError(401, 'Invalid session.')
     const result = await pool.query(
       `SELECT u.id, u.name, u.email, u.username, u.role, u.is_active, u.created_at,
               u.business_id, b.name AS business_name
        FROM app_users u JOIN app_businesses b ON b.id = u.business_id
-       WHERE u.id = $1`,
-      [claims.sub],
+       WHERE u.id = $1 AND u.business_id = $2`,
+      [claims.sub, claims.businessId],
     )
     const user = result.rows[0]
     if (!user?.is_active) throw httpError(401, 'This account is inactive. Contact the owner.')
+    if (user.role !== claims.role) throw httpError(401, 'Your account permissions changed. Sign in again.')
     request.user = publicUser(user)
     next()
   } catch (error) {
@@ -162,6 +174,13 @@ const accountSchema = z.object({
   username: z.string().trim().min(3).max(64),
   email: z.union([z.string().trim().email().max(254), z.literal('')]).optional(),
   password: z.string().min(12).max(128),
+})
+
+const ownerRegistrationSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  email: z.string().trim().email().max(254),
+  password: z.string().min(12).max(128),
+  businessName: z.string().trim().min(1).max(160),
 })
 
 const actionSchema = z.object({
@@ -905,16 +924,9 @@ app.get('/api/health', async (_request, response) => {
   response.json({ status: 'ok' })
 })
 
-app.get('/api/auth/setup-status', async (_request, response) => {
-  response.json({ ownerExists: false })
-})
-
 app.post('/api/auth/register-owner', authLimiter, async (request, response) => {
   requireEnvironment()
-  const input = validate(accountSchema.extend({
-    email: z.string().trim().email().max(254),
-    businessName: z.string().trim().min(1).max(160),
-  }), request.body)
+  const input = validate(ownerRegistrationSchema, request.body)
   const registration = await withTransaction(async (client) => {
     const businessId = crypto.randomUUID()
     await client.query(
@@ -925,7 +937,14 @@ app.post('/api/auth/register-owner', authLimiter, async (request, response) => {
       `INSERT INTO app_users (id, business_id, name, email, username, password_hash, role)
        VALUES ($1, $2, $3, $4, $5, $6, 'owner')
        RETURNING id, business_id, name, email, username, role, is_active, created_at`,
-      [crypto.randomUUID(), businessId, input.name, input.email.toLowerCase(), input.username, await bcrypt.hash(input.password, 12)],
+      [
+        crypto.randomUUID(),
+        businessId,
+        input.name,
+        input.email.toLowerCase(),
+        `owner-${crypto.randomUUID()}`,
+        await bcrypt.hash(input.password, 12),
+      ],
     )
     const owner = { ...result.rows[0], business_name: input.businessName }
     const user = publicUser(owner)
@@ -1297,11 +1316,17 @@ app.use((error, _request, response, _next) => {
     response.status(400).json({ error: 'Request body must be valid JSON.' })
     return
   }
-  const status = Number.isInteger(error.status) ? error.status : 500
+  const constraint = typeof error.constraint === 'string' ? error.constraint.toLowerCase() : ''
+  const duplicateMessage = error.code === '23505'
+    ? constraint.includes('email') ? 'Email already registered.'
+      : constraint.includes('username') ? 'Username is already in use.'
+        : 'This record already exists.'
+    : undefined
+  const status = duplicateMessage ? 409 : Number.isInteger(error.status) ? error.status : 500
   if (status >= 500) console.error('API request failed', error)
   response.status(status).json({
-    error: status >= 500 ? 'An unexpected server error occurred.' : error.message,
+    error: duplicateMessage ?? (status >= 500 ? 'An unexpected server error occurred.' : error.message),
   })
 })
 
-export { actionSchema, app, parseImage, safeInteger }
+export { actionSchema, app, ownerRegistrationSchema, parseImage, safeInteger }

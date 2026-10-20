@@ -28,8 +28,7 @@ const THEME_KEY = 'bar-app-theme'
 function AppShell() {
   const repository = useInventoryRepository()
   const [loggedInUser, setLoggedInUser] = useState<User | null>(null)
-  const [showSetup, setShowSetup] = useState(false)
-  const [ownerRegistrationAvailable, setOwnerRegistrationAvailable] = useState(false)
+  const [showSetup, setShowSetup] = useState(true)
   const [legalPage, setLegalPage] = useState<LegalPage | null>(null)
   const [startupComplete, setStartupComplete] = useState(false)
   const [startupError, setStartupError] = useState('')
@@ -80,19 +79,18 @@ function AppShell() {
         const activeUser = sessionIsValid ? users.find((user) => user.id === sessionId && user.isActive) : undefined
         if (activeUser) {
           localStorage.setItem('bar-user', activeUser.id)
-          if (!cancelled) setLoggedInUser(activeUser)
+          if (!cancelled) {
+            setLoggedInUser(activeUser)
+            setShowSetup(false)
+          }
           return
         }
         localStorage.removeItem('bar-user')
-        const ownerExists = repository.syncNow ? true : await repository.getSetupStatus()
-        if (!cancelled) {
-          setOwnerRegistrationAvailable(Boolean(repository.syncNow) || !ownerExists)
-          setShowSetup(!repository.syncNow && !ownerExists)
-        }
+        if (!cancelled) setShowSetup(true)
       } catch (error) {
         if (!cancelled) {
           setStartupError(error instanceof Error ? error.message : 'Unable to load the application.')
-          setShowSetup(false)
+          setShowSetup(true)
         }
       } finally {
         if (!cancelled) setStartupComplete(true)
@@ -170,7 +168,6 @@ function AppShell() {
     name: string
     businessName: string
     email: string
-    username: string
     password: string
     role: 'owner'
   }) => {
@@ -178,7 +175,6 @@ function AppShell() {
       name: payload.name,
       businessName: payload.businessName,
       email: payload.email,
-      username: payload.username,
       password: payload.password,
       role: 'owner',
       isActive: true,
@@ -186,7 +182,6 @@ function AppShell() {
     if (!repository.syncNow) {
       await repository.saveSettings({ businessName: payload.businessName.trim() })
     }
-    setOwnerRegistrationAvailable(Boolean(repository.syncNow))
     setShowSetup(false)
     setStartupError('')
     persistUser(created)
@@ -267,13 +262,15 @@ function AppShell() {
 
   if (showSetup) {
     return (
-      <SetupScreen
-        onCreate={handleCreateSetup}
-        onBackToLogin={() => setShowSetup(false)}
-        registrationAvailable={ownerRegistrationAvailable}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-      />
+      <>
+        {startupError && <p role="status" className="fixed inset-x-4 top-4 z-10 mx-auto max-w-md rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{startupError}</p>}
+        <SetupScreen
+          onCreate={handleCreateSetup}
+          onBackToLogin={() => setShowSetup(false)}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+        />
+      </>
     )
   }
 

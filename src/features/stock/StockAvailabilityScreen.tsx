@@ -16,6 +16,7 @@ type ItemFormValues = {
   packSize: string
   costPrice: string
   reorderLevel: string
+  initialStock: string
   priceLabel: string
   salePrice: string
   trackStock: boolean
@@ -42,6 +43,7 @@ const emptyItemForm: ItemFormValues = {
   packSize: '1',
   costPrice: '',
   reorderLevel: '0',
+  initialStock: '0',
   priceLabel: 'Unit',
   salePrice: '',
   trackStock: true,
@@ -130,6 +132,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
       packSize: String(item.packSize),
       costPrice: (item.costPriceKobo / 100).toFixed(2),
       reorderLevel: String(item.reorderLevel),
+      initialStock: '0',
       priceLabel: pricePoint?.label ?? 'Unit',
       salePrice: pricePoint ? (pricePoint.priceKobo / 100).toFixed(2) : '',
       trackStock: item.trackStock,
@@ -162,6 +165,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
     event.preventDefault()
     setError('')
     setBusy(true)
+    let itemWasSaved = false
     try {
       const category = categories.find((entry) => entry.id === itemForm.categoryId)
       if (!category) throw new Error('Select an inventory category.')
@@ -184,13 +188,34 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
         }],
         photo: itemForm.photo,
       }, user.id)
+      itemWasSaved = true
+      if (!editingItem && itemForm.trackStock && Number(itemForm.initialStock) > 0) {
+        const initialQuantity = Number(itemForm.initialStock)
+        const packSize = Number(itemForm.packSize)
+        await repository.recordStockIn({
+          itemId: saved.id,
+          crates: Math.floor(initialQuantity / packSize),
+          looseUnits: initialQuantity % packSize,
+          unitCostKobo: Math.round(Number(itemForm.costPrice) * 100),
+          note: 'Opening stock',
+          userId: user.id,
+        })
+      }
       if (saved.archived) await repository.saveItem({ id: saved.id, archived: false }, user.id)
       await refreshInventory()
       setItemFormOpen(false)
       setEditingItem(null)
       setSuccessMessage(editingItem ? 'Item updated.' : 'Item added.')
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to save this item.')
+      const message = caught instanceof Error ? caught.message : 'Unable to save this item.'
+      if (itemWasSaved && !editingItem) {
+        setItemFormOpen(false)
+        setEditingItem(null)
+        void refreshInventory().catch(handleInventoryLoadError)
+        setError(`Item was saved, but its initial stock was not recorded: ${message}`)
+      } else {
+        setError(message)
+      }
     } finally {
       setBusy(false)
     }
@@ -383,7 +408,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
                 image.src = objectUrl
               }}
             />
-            <p className="mt-1 text-xs text-[var(--muted)]">JPG, PNG or WebP · up to 5 MB · compressed and stored in this browser only.</p>
+            <p className="mt-1 text-xs text-[var(--muted)]">JPG, PNG or WebP · up to 5 MB · compressed before upload.</p>
             {itemForm.photo && (
               <div className="mt-2 flex items-center gap-3">
                 <img src={itemForm.photo} alt="Item preview" className="h-16 w-16 rounded-lg object-cover" />
@@ -404,6 +429,11 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
             <Field label="Low-stock alert threshold" id="item-reorder">
               <input id="item-reorder" type="number" min="0" step="1" required value={itemForm.reorderLevel} onChange={(event) => setItemForm({ ...itemForm, reorderLevel: event.target.value })} className={inputClass} />
             </Field>
+            {!editingItem && itemForm.trackStock && (
+              <Field label="Initial stock (base units)" id="item-initial-stock">
+                <input id="item-initial-stock" type="number" min="0" step="1" required value={itemForm.initialStock} onChange={(event) => setItemForm({ ...itemForm, initialStock: event.target.value })} className={inputClass} />
+              </Field>
+            )}
             <Field label="Sale price label" id="item-price-label">
               <input id="item-price-label" required value={itemForm.priceLabel} onChange={(event) => setItemForm({ ...itemForm, priceLabel: event.target.value })} placeholder="Bottle" className={inputClass} />
             </Field>
@@ -496,7 +526,15 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {rows.length === 0 ? (
-          <EmptyState title={showArchived ? 'No archived items' : 'No inventory items'} body={canManageInventory ? 'Add an item to start managing your inventory.' : 'Try a different filter or search term.'} />
+          <div className="col-span-full grid gap-3">
+            <EmptyState
+              title={showArchived ? 'No archived items' : items.length === 0 ? 'No items yet' : 'No inventory items'}
+              body={canManageInventory ? 'Add your first item to start managing inventory.' : 'Try a different filter or search term.'}
+            />
+            {canManageInventory && items.length === 0 && !showArchived && (
+              <Button type="button" className="mx-auto" onClick={openNewItem}>Add your first item</Button>
+            )}
+          </div>
         ) : rows.map(({ item, level }) => (
           <article key={item.id} className="rounded-[16px] border border-[var(--border-color)] bg-[var(--surface)] p-4">
             <div className="flex items-center justify-between gap-3">
