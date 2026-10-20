@@ -18,11 +18,13 @@ type RegistrationForm = Omit<RegistrationPayload, 'role'> & { confirmPassword: s
 export function SetupScreen({
   onCreate,
   onBackToLogin,
+  registrationAvailable,
   theme,
   onToggleTheme,
 }: {
   onCreate: (payload: RegistrationPayload) => Promise<void>
   onBackToLogin?: () => void
+  registrationAvailable: boolean
   theme: string
   onToggleTheme: () => void
 }) {
@@ -121,9 +123,13 @@ export function SetupScreen({
         </button>
       </div>
 
-      <p className="mb-5 text-sm text-[var(--muted)]">Set up your business and create the owner account.</p>
+      <p className="mb-5 text-sm text-[var(--muted)]">
+        {registrationAvailable
+          ? 'Register the business owner account. The owner creates staff accounts after signing in.'
+          : 'Public staff registration is disabled. Ask the business owner or manager to create your staff account.'}
+      </p>
 
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
+      {registrationAvailable && <form onSubmit={handleSubmit} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
         <div>
           <label htmlFor="owner-name" className="mb-1.5 block text-sm font-medium">Owner full name</label>
           <input
@@ -214,7 +220,7 @@ export function SetupScreen({
           {submitting ? 'Creating account…' : 'Create owner account'}
           {!submitting && <ArrowRight size={18} className="ml-2" />}
         </Button>
-      </form>
+      </form>}
 
       {onBackToLogin && (
         <button

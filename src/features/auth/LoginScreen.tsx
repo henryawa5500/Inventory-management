@@ -6,11 +6,13 @@ import type { LegalPage } from '../legal/LegalInformationScreen'
 
 export function LoginScreen({
   onLogin,
+  onCreateAccount,
   onOpenLegal,
   theme,
   onToggleTheme,
 }: {
   onLogin: (username: string, password: string) => Promise<boolean>
+  onCreateAccount?: () => void
   onOpenLegal: (page: LegalPage) => void
   theme: string
   onToggleTheme: () => void
@@ -77,6 +79,18 @@ export function LoginScreen({
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <Button type="submit" fullWidth>Sign in</Button>
         </form>
+        {onCreateAccount && (
+          <div className="mt-5 text-center">
+            <button
+              type="button"
+              onClick={onCreateAccount}
+              className="min-h-11 text-sm font-medium text-[var(--text-color)] underline underline-offset-4"
+            >
+              Create owner account
+            </button>
+            <p className="mt-1 text-xs text-[var(--muted)]">Staff accounts are created by the owner.</p>
+          </div>
+        )}
         <div className="mt-6 flex justify-center gap-5 text-xs text-[var(--muted)]">
           <button type="button" onClick={() => onOpenLegal('privacy')} className="min-h-11 underline underline-offset-4">Privacy</button>
           <button type="button" onClick={() => onOpenLegal('terms')} className="min-h-11 underline underline-offset-4">Terms</button>

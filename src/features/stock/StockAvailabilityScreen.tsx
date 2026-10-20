@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Archive, ArchiveRestore, PackagePlus, Pencil, Plus, Search, TriangleAlert, X } from 'lucide-react'
+import { Archive, ArchiveRestore, PackagePlus, Pencil, Plus, Search, TriangleAlert } from 'lucide-react'
 import { Button } from '../../components/Button'
 import { Chip } from '../../components/Chip'
 import { EmptyState } from '../../components/EmptyState'
+import { Modal } from '../../components/Modal'
+import { Toast } from '../../components/Toast'
 import { formatNaira } from '../../domain/money'
 import type { Category, Item, StockLevel, User } from '../../domain/types'
 import { useInventoryRepository } from '../../data/repositoryContext'
@@ -64,10 +66,12 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
   const [stockForm, setStockForm] = useState<StockFormValues>(emptyStockForm)
   const [adjustmentItem, setAdjustmentItem] = useState<Item | null>(null)
   const [adjustmentForm, setAdjustmentForm] = useState<AdjustmentFormValues>({ countedQuantity: '', reason: '' })
+  const [archiveItem, setArchiveItem] = useState<Item | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [addingCategory, setAddingCategory] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
 
   const refreshInventory = useCallback(async () => {
     const [itemsList, categoriesList, levels] = await Promise.all([
@@ -87,6 +91,12 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
   useEffect(() => {
     void refreshInventory().catch(handleInventoryLoadError)
   }, [handleInventoryLoadError, refreshInventory])
+
+  useEffect(() => {
+    if (!successMessage) return
+    const timeout = window.setTimeout(() => setSuccessMessage(''), 3000)
+    return () => window.clearTimeout(timeout)
+  }, [successMessage])
 
   const rows = useMemo(() => {
     const levels = new Map(stockLevels.map((level) => [level.itemId, level]))
@@ -130,6 +140,24 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
     setError('')
   }
 
+  const openStockIntake = (item: Item) => {
+    setStockItem(item)
+    setAdjustmentItem(null)
+    setEditingItem(null)
+    setItemFormOpen(false)
+    setStockForm(emptyStockForm)
+    setError('')
+  }
+
+  const openStockAdjustment = (item: Item, quantity: number) => {
+    setAdjustmentItem(item)
+    setStockItem(null)
+    setEditingItem(null)
+    setItemFormOpen(false)
+    setAdjustmentForm({ countedQuantity: String(quantity), reason: '' })
+    setError('')
+  }
+
   const handleSaveItem = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError('')
@@ -160,6 +188,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
       await refreshInventory()
       setItemFormOpen(false)
       setEditingItem(null)
+      setSuccessMessage(editingItem ? 'Item updated.' : 'Item added.')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to save this item.')
     } finally {
@@ -186,6 +215,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
       await refreshInventory()
       setStockItem(null)
       setStockForm(emptyStockForm)
+      setSuccessMessage('Stock intake recorded.')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to record stock intake.')
     } finally {
@@ -208,6 +238,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
       await refreshInventory()
       setAdjustmentItem(null)
       setAdjustmentForm({ countedQuantity: '', reason: '' })
+      setSuccessMessage('Stock count adjusted.')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to adjust stock.')
     } finally {
@@ -234,8 +265,11 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
     }
   }
 
-  const handleArchive = async (item: Item) => {
+  const handleArchive = async () => {
+    if (!archiveItem) return
+    const item = archiveItem
     setError('')
+    setBusy(true)
     try {
       if (item.archived) {
         await repository.saveItem({ id: item.id, archived: false }, user.id)
@@ -243,8 +277,12 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
         await repository.archiveItem(item.id, user.id)
       }
       await refreshInventory()
+      setArchiveItem(null)
+      setSuccessMessage(item.archived ? 'Item restored.' : 'Item archived.')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to update this item.')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -253,6 +291,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
     setEditingItem(null)
     setStockItem(null)
     setAdjustmentItem(null)
+    setArchiveItem(null)
     setAddingCategory(false)
     setError('')
   }
@@ -277,11 +316,9 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
       {error && <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       {canManageInventory && itemFormOpen && (
-        <form onSubmit={handleSaveItem} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 xl:max-w-4xl">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-base font-semibold">{editingItem ? 'Edit inventory item' : 'New inventory item'}</h3>
-            <button type="button" onClick={closeForms} aria-label="Close item form" className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-elevated)]"><X size={18} /></button>
-          </div>
+        <Modal title={editingItem ? 'Edit inventory item' : 'New inventory item'} onClose={closeForms}>
+        <form onSubmit={handleSaveItem} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
           <Field label="Item name" id="item-name">
             <input id="item-name" required value={itemForm.name} onChange={(event) => setItemForm({ ...itemForm, name: event.target.value })} placeholder="e.g. Lager 50cl" className={inputClass} />
           </Field>
@@ -294,7 +331,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
               <button type="button" onClick={() => setAddingCategory(true)} className="mt-2 text-sm font-medium underline underline-offset-4">Add category</button>
             ) : (
               <div className="mt-2 flex gap-2">
-                <input autoFocus value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="Category name" className={inputClass} />
+                <input value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="Category name" className={inputClass} />
                 <Button type="button" onClick={() => void handleSaveCategory()}>Add</Button>
               </div>
             )}
@@ -378,22 +415,21 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
             <input type="checkbox" checked={itemForm.trackStock} onChange={(event) => setItemForm({ ...itemForm, trackStock: event.target.checked })} className="h-4 w-4 accent-black" />
             Track stock for this item
           </label>
-          <div className="flex gap-3">
+          {error && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+          </div>
+          <div className="flex shrink-0 gap-3 border-t border-[var(--border-color)] bg-[var(--surface)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
             <Button type="button" variant="secondary" fullWidth onClick={closeForms}>Cancel</Button>
             <Button type="submit" fullWidth disabled={busy}>{busy ? 'Saving…' : editingItem ? 'Save changes' : 'Add item'}</Button>
           </div>
         </form>
+        </Modal>
       )}
 
       {canManageInventory && stockItem && (
-        <form onSubmit={handleSaveStock} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 xl:max-w-4xl">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold">Record stock intake</h3>
-              <p className="text-sm text-[var(--muted)]">{stockItem.name} · {stockItem.packSize} {stockItem.baseUnit}s per pack</p>
-            </div>
-            <button type="button" onClick={closeForms} aria-label="Close stock form" className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-elevated)]"><X size={18} /></button>
-          </div>
+        <Modal title="Record stock intake" onClose={closeForms}>
+        <form onSubmit={handleSaveStock} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+          <p className="text-sm text-[var(--muted)]">{stockItem.name} · {stockItem.packSize} {stockItem.baseUnit}s per pack</p>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Packs / crates" id="stock-packs">
               <input id="stock-packs" type="number" min="0" step="1" required value={stockForm.packs} onChange={(event) => setStockForm({ ...stockForm, packs: event.target.value })} className={inputClass} />
@@ -411,33 +447,35 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
           <Field label="Note (optional)" id="stock-note">
             <input id="stock-note" value={stockForm.note} onChange={(event) => setStockForm({ ...stockForm, note: event.target.value })} placeholder="Invoice or delivery reference" className={inputClass} />
           </Field>
-          <div className="flex gap-3">
+          {error && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+          </div>
+          <div className="flex shrink-0 gap-3 border-t border-[var(--border-color)] bg-[var(--surface)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
             <Button type="button" variant="secondary" fullWidth onClick={closeForms}>Cancel</Button>
             <Button type="submit" fullWidth disabled={busy}>{busy ? 'Saving…' : 'Save stock intake'}</Button>
           </div>
         </form>
+        </Modal>
       )}
 
       {canManageInventory && adjustmentItem && (
-        <form onSubmit={handleSaveAdjustment} className="space-y-4 rounded-[20px] border border-[var(--border-color)] bg-[var(--surface)] p-4 xl:max-w-4xl">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold">Adjust stock count</h3>
-              <p className="text-sm text-[var(--muted)]">{adjustmentItem.name}</p>
-            </div>
-            <button type="button" onClick={closeForms} aria-label="Close adjustment form" className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-elevated)]"><X size={18} /></button>
-          </div>
+        <Modal title="Adjust stock count" onClose={closeForms}>
+        <form onSubmit={handleSaveAdjustment} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+          <p className="text-sm text-[var(--muted)]">{adjustmentItem.name}</p>
           <Field label={`Physical count (${adjustmentItem.baseUnit})`} id="stock-count">
             <input id="stock-count" type="number" min="0" step="1" required value={adjustmentForm.countedQuantity} onChange={(event) => setAdjustmentForm({ ...adjustmentForm, countedQuantity: event.target.value })} placeholder="Enter the count on hand" className={inputClass} />
           </Field>
           <Field label="Reason for adjustment" id="stock-adjustment-reason">
             <input id="stock-adjustment-reason" required value={adjustmentForm.reason} onChange={(event) => setAdjustmentForm({ ...adjustmentForm, reason: event.target.value })} placeholder="e.g. Physical stock count" className={inputClass} />
           </Field>
-          <div className="flex gap-3">
+          {error && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+          </div>
+          <div className="flex shrink-0 gap-3 border-t border-[var(--border-color)] bg-[var(--surface)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
             <Button type="button" variant="secondary" fullWidth onClick={closeForms}>Cancel</Button>
             <Button type="submit" fullWidth disabled={busy}>{busy ? 'Saving…' : 'Save adjustment'}</Button>
           </div>
         </form>
+        </Modal>
       )}
 
       <div className="flex items-center gap-2 rounded-[14px] border border-[var(--border-color)] bg-[var(--surface)] px-3 py-2 shadow-sm">
@@ -491,12 +529,12 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
             {canManageInventory && (
               <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border-color)] pt-3">
                 {!item.archived && item.trackStock && (
-                  <Button size="small" className="min-w-28 flex-1 px-3 text-center" type="button" variant="secondary" onClick={() => { setStockItem(item); setAdjustmentItem(null); setEditingItem(null); setItemFormOpen(false); setStockForm(emptyStockForm); setError('') }}>
+                  <Button size="small" className="min-w-28 flex-1 px-3 text-center" type="button" variant="secondary" onClick={() => openStockIntake(item)}>
                     <PackagePlus size={16} className="mr-2" /> Add stock
                   </Button>
                 )}
                 {!item.archived && item.trackStock && (
-                  <Button size="small" className="min-w-28 flex-1 px-3 text-center" type="button" variant="secondary" onClick={() => { setAdjustmentItem(item); setStockItem(null); setEditingItem(null); setItemFormOpen(false); setAdjustmentForm({ countedQuantity: String(level.quantity), reason: '' }); setError('') }}>
+                  <Button size="small" className="min-w-28 flex-1 px-3 text-center" type="button" variant="secondary" onClick={() => openStockAdjustment(item, level.quantity)}>
                     Adjust count
                   </Button>
                 )}
@@ -505,7 +543,7 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
                     <Pencil size={16} className="mr-2" /> Edit item
                   </Button>
                 )}
-                <Button size="small" className="min-w-28 flex-1 px-3 text-center" type="button" variant="secondary" onClick={() => void handleArchive(item)}>
+                <Button size="small" className="min-w-28 flex-1 px-3 text-center" type="button" variant="secondary" onClick={() => { setArchiveItem(item); setError('') }}>
                   {item.archived ? <ArchiveRestore size={16} className="mr-2" /> : <Archive size={16} className="mr-2" />}
                   {item.archived ? 'Restore' : 'Archive'}
                 </Button>
@@ -514,6 +552,31 @@ export function StockAvailabilityScreen({ user }: { user: User }) {
           </article>
         ))}
       </div>
+      {archiveItem && (
+        <Modal
+          title={archiveItem.archived ? 'Restore item' : 'Archive item'}
+          onClose={closeForms}
+        >
+          <div className="space-y-4 p-4 sm:p-5">
+            <p className="text-sm text-[var(--muted)]">
+              {archiveItem.archived
+                ? `Restore ${archiveItem.name} to active inventory?`
+                : `Archive ${archiveItem.name}? It will be removed from active inventory, but its sales and stock history will be kept.`}
+            </p>
+            {error && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+            <div className="flex gap-3">
+              <Button type="button" variant="secondary" fullWidth onClick={closeForms}>Cancel</Button>
+              <Button type="button" variant={archiveItem.archived ? 'primary' : 'secondary'} fullWidth onClick={() => void handleArchive()} disabled={busy}>
+                {busy ? 'Saving…' : archiveItem.archived ? 'Restore item' : 'Archive item'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      <Toast
+        message={successMessage}
+        visible={Boolean(successMessage)}
+      />
     </div>
   )
 }

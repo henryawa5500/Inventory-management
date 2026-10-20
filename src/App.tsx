@@ -29,6 +29,7 @@ function AppShell() {
   const repository = useInventoryRepository()
   const [loggedInUser, setLoggedInUser] = useState<User | null>(null)
   const [showSetup, setShowSetup] = useState(false)
+  const [ownerRegistrationAvailable, setOwnerRegistrationAvailable] = useState(false)
   const [legalPage, setLegalPage] = useState<LegalPage | null>(null)
   const [startupComplete, setStartupComplete] = useState(false)
   const [startupError, setStartupError] = useState('')
@@ -83,7 +84,10 @@ function AppShell() {
         }
         localStorage.removeItem('bar-user')
         const ownerExists = await repository.getSetupStatus()
-        if (!cancelled) setShowSetup(!ownerExists)
+        if (!cancelled) {
+          setOwnerRegistrationAvailable(!ownerExists)
+          setShowSetup(!ownerExists)
+        }
       } catch (error) {
         if (!cancelled) {
           setStartupError(error instanceof Error ? error.message : 'Unable to load the application.')
@@ -178,6 +182,7 @@ function AppShell() {
       isActive: true,
     })
     await repository.saveSettings({ businessName: payload.businessName.trim() })
+    setOwnerRegistrationAvailable(false)
     setShowSetup(false)
     setStartupError('')
     persistUser(created)
@@ -245,13 +250,27 @@ function AppShell() {
     return (
       <>
         {startupError && <p role="status" className="fixed inset-x-4 top-4 z-10 mx-auto max-w-md rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{startupError}</p>}
-        <LoginScreen onLogin={handleLogin} onOpenLegal={setLegalPage} theme={theme} onToggleTheme={handleToggleTheme} />
+        <LoginScreen
+          onLogin={handleLogin}
+          onCreateAccount={() => setShowSetup(true)}
+          onOpenLegal={setLegalPage}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+        />
       </>
     )
   }
 
   if (showSetup) {
-    return <SetupScreen onCreate={handleCreateSetup} theme={theme} onToggleTheme={handleToggleTheme} />
+    return (
+      <SetupScreen
+        onCreate={handleCreateSetup}
+        onBackToLogin={() => setShowSetup(false)}
+        registrationAvailable={ownerRegistrationAvailable}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+      />
+    )
   }
 
   if (!loggedInUser) return null
