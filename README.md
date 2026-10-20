@@ -64,7 +64,7 @@ For Vercel:
 3. From a trusted terminal with the same `DATABASE_URL`, run `npm run db:migrate` once for that database. This applies `server/schema.sql` and `server/migrations/002-business-tenancy.sql`; do not run against an unconfirmed database.
 4. Redeploy the Vercel project after setting the variables and ensuring the deployment includes the API handler.
 
-Do not set either secret as a `VITE_*` variable. The API entry points forward requests to the shared Express app; explicit Vercel function wrappers cover nested endpoint paths, while `api/[...path].js` remains the fallback. `vercel.json` rewrites non-API browser routes to the SPA while leaving `/api/*` to the functions. Vite's `/api` proxy only applies during local development.
+Do not set either secret as a `VITE_*` variable. The API entry points forward requests to the shared Express app; explicit Vercel function wrappers cover nested endpoint paths, while `api/[...path].js` handles remaining paths such as `/api/users`. The 12 API function files stay within the Vercel Hobby plan's deployment limit. `vercel.json` rewrites non-API browser routes to the SPA while leaving `/api/*` to the functions. Vite's `/api` proxy only applies during local development.
 
 The front end calls these API routes:
 
