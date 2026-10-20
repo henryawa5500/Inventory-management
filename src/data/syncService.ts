@@ -9,7 +9,7 @@ import type {
   User,
 } from '../domain/types'
 import { apiBlobRequest, apiRequest, ApiError, clearServerSession, hasLocalSession } from './apiClient'
-import { localDatabase, type SyncQueueRecord } from './localDatabase'
+import { activateBusinessDatabase, localDatabase, type SyncQueueRecord } from './localDatabase'
 
 const SESSION_KEY = 'bar-user'
 const DEVICE_KEY = 'dqueens-device-id'
@@ -479,6 +479,7 @@ async function clearAfterDeactivation() {
   }
   await localDatabase.delete()
   localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem('dqueens-business-id')
   localStorage.removeItem(CURSOR_KEY)
   localStorage.removeItem(CURSOR_ID_KEY)
   localStorage.removeItem(SESSION_UNTIL_KEY)
@@ -532,12 +533,17 @@ export function syncNow() {
 }
 
 export async function initializeOfflineStorage() {
+  const sessionUserId = localStorage.getItem(SESSION_KEY)
+  const cachedUser = sessionUserId ? await localDatabase.users.get(sessionUserId) : undefined
+  const businessId = localStorage.getItem('dqueens-business-id') ?? cachedUser?.businessId
+  if (businessId) await activateBusinessDatabase(businessId, cachedUser?.id ?? sessionUserId ?? undefined)
   if (navigator.storage?.persist) await navigator.storage.persist()
 }
 
 export async function clearLocalData() {
   await localDatabase.delete()
   localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem('dqueens-business-id')
   localStorage.removeItem(CURSOR_KEY)
   localStorage.removeItem(CURSOR_ID_KEY)
   localStorage.removeItem(SESSION_UNTIL_KEY)

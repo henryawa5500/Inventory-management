@@ -79,6 +79,8 @@ function publicUser(row) {
     id: row.id,
     name: row.name,
     email: row.email ?? undefined,
+    businessId: row.business_id,
+    businessName: row.business_name,
     username: row.username,
     password: '',
     role: row.role,
@@ -125,7 +127,10 @@ async function authenticate(request, response, next) {
     })
     if (typeof claims === 'string' || typeof claims.sub !== 'string') throw httpError(401, 'Invalid session.')
     const result = await pool.query(
-      'SELECT id, name, email, username, role, is_active, created_at FROM app_users WHERE id = $1',
+      `SELECT u.id, u.name, u.email, u.username, u.role, u.is_active, u.created_at,
+              u.business_id, b.name AS business_name
+       FROM app_users u JOIN app_businesses b ON b.id = u.business_id
+       WHERE u.id = $1`,
       [claims.sub],
     )
     const user = result.rows[0]
@@ -191,22 +196,22 @@ function safeInteger(value, label, { min = 0, max = 2_000_000_000 } = {}) {
   return value
 }
 
-async function publish(client, entityType, entityId, payload) {
-  await client.query('SELECT pg_advisory_xact_lock(827365)')
+async function publish(client, businessId, entityType, entityId, payload) {
   await client.query('SELECT pg_advisory_xact_lock(827365)')
   await client.query(
-    'INSERT INTO app_change_log (entity_type, entity_id, payload) VALUES ($1, $2, $3)',
-    [entityType, entityId, payload],
+    `INSERT INTO app_change_log (business_id, entity_type, entity_id, payload)
+     VALUES ($1, $2, $3, $4)`,
+    [businessId, entityType, entityId, payload],
   )
 }
 
 async function logActivity(client, actor, action, what, oldValue = '', newValue = '') {
   const result = await client.query(
     `INSERT INTO app_activity_log
-       (user_id, user_name, user_role, action, what, old_value, new_value)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (business_id, user_id, user_name, user_role, action, what, old_value, new_value)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id, user_id, user_name, user_role, action, what, old_value, new_value, created_at`,
-    [actor.id, actor.name, actor.role, action, what, oldValue, newValue],
+    [actor.businessId, actor.id, actor.name, actor.role, action, what, oldValue, newValue],
   )
   const row = result.rows[0]
   const entry = {
@@ -221,13 +226,13 @@ async function logActivity(client, actor, action, what, oldValue = '', newValue 
     createdAt: row.created_at.toISOString(),
   }
   const notificationResult = await client.query(
-    `INSERT INTO app_notifications (audit_entry_id, action, what, user_name, user_role)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at`,
-    [row.id, action, what, actor.name, actor.role],
+    `INSERT INTO app_notifications (business_id, audit_entry_id, action, what, user_name, user_role)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
+    [actor.businessId, row.id, action, what, actor.name, actor.role],
   )
   const notificationRow = notificationResult.rows[0]
-  await publish(client, 'activity', entry.id, entry)
-  await publish(client, 'notification', notificationRow.id, {
+  await publish(client, actor.businessId, 'activity', entry.id, entry)
+  await publish(client, actor.businessId, 'notification', notificationRow.id, {
     id: notificationRow.id,
     auditEntryId: entry.id,
     action,
@@ -239,10 +244,10 @@ async function logActivity(client, actor, action, what, oldValue = '', newValue 
   return entry
 }
 
-async function getItem(client, id, { lock = false } = {}) {
+async function getItem(client, id, businessId, { lock = false } = {}) {
   const result = await client.query(
-    `SELECT i.* FROM app_items i WHERE i.id = $1${lock ? ' FOR UPDATE' : ''}`,
-    [id],
+    `SELECT i.* FROM app_items i WHERE i.id = $1 AND i.business_id = $2${lock ? ' FOR UPDATE' : ''}`,
+    [id, businessId],
   )
   return result.rows[0]
 }
@@ -265,28 +270,29 @@ function mapItem(row) {
   }
 }
 
-async function currentQuantity(client, itemId) {
+async function currentQuantity(client, itemId, businessId) {
   const result = await client.query(
-    'SELECT COALESCE(SUM(quantity_delta), 0)::integer AS quantity FROM app_stock_events WHERE item_id = $1',
-    [itemId],
+    'SELECT COALESCE(SUM(quantity_delta), 0)::integer AS quantity FROM app_stock_events WHERE item_id = $1 AND business_id = $2',
+    [itemId, businessId],
   )
   return result.rows[0].quantity
 }
 
 async function recordStockEvent(client, { action, actor, item, eventType, quantityDelta, description, unitCostKobo }) {
   safeInteger(Math.abs(quantityDelta), 'Stock change', { min: 1 })
-  await client.query('SELECT id FROM app_items WHERE id = $1 FOR UPDATE', [item.id])
-  const priorQuantity = await currentQuantity(client, item.id)
+  await client.query('SELECT id FROM app_items WHERE id = $1 AND business_id = $2 FOR UPDATE', [item.id, actor.businessId])
+  const priorQuantity = await currentQuantity(client, item.id, actor.businessId)
   const id = crypto.randomUUID()
   const result = await client.query(
     `INSERT INTO app_stock_events
-       (id, client_uuid, item_id, event_type, quantity_delta, description, actor_user_id,
+       (id, business_id, client_uuid, item_id, event_type, quantity_delta, description, actor_user_id,
         device_id, unit_cost_kobo, created_at_client)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING id, item_id, event_type, quantity_delta, description, actor_user_id,
                unit_cost_kobo, created_at_server`,
     [
       id,
+      actor.businessId,
       action.clientUuid,
       item.id,
       eventType,
@@ -311,17 +317,7 @@ async function recordStockEvent(client, { action, actor, item, eventType, quanti
     ...(row.unit_cost_kobo !== null ? { unitCostKobo: row.unit_cost_kobo } : {}),
   }
   const nextQuantity = priorQuantity + quantityDelta
-  await publish(client, 'stockEvent', movement.id, movement)
-  if (eventType === 'purchase' || eventType === 'adjustment') {
-    await logActivity(
-      client,
-      actor,
-      eventType === 'purchase' ? 'Added stock' : 'Adjusted stock',
-      item.name,
-      `${priorQuantity} units`,
-      `${nextQuantity} units (${quantityDelta > 0 ? '+' : ''}${quantityDelta}; ${description})`,
-    )
-  }
+  await publish(client, actor.businessId, 'stockEvent', movement.id, movement)
   if (nextQuantity < 0) {
     await logActivity(client, actor, 'Stock review required', item.name, `${priorQuantity} units`, `${nextQuantity} units after offline sale`)
   } else if (item.track_stock && priorQuantity > item.reorder_level && nextQuantity <= item.reorder_level) {
@@ -372,30 +368,41 @@ async function applyAction(client, action, actor) {
         archived: z.boolean().optional(),
         photo: z.string().max(3_000_000).optional(),
       }), payload.item)
-      const old = await getItem(client, item.id, { lock: true })
+      const old = await getItem(client, item.id, actor.businessId, { lock: true })
+      if (!old) {
+        const itemIdCollision = await client.query('SELECT 1 FROM app_items WHERE id = $1', [item.id])
+        if (itemIdCollision.rowCount) throw httpError(409, 'This item ID is already used by another business. Please retry.')
+      }
       const previousImage = old ? await client.query(
-        'SELECT 1 FROM app_item_images WHERE item_id = $1',
-        [item.id],
+        'SELECT 1 FROM app_item_images WHERE item_id = $1 AND business_id = $2',
+        [item.id, actor.businessId],
       ) : null
       const categoryName = item.categoryName.trim()
       await client.query(
-        `INSERT INTO app_categories (id, name)
-         VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`,
-        [item.categoryId, categoryName],
+        `INSERT INTO app_categories (business_id, id, name)
+         VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+        [actor.businessId, item.categoryId, categoryName],
       )
+      const category = await client.query(
+        'SELECT id FROM app_categories WHERE id = $1 AND business_id = $2',
+        [item.categoryId, actor.businessId],
+      )
+      if (!category.rowCount) throw httpError(409, 'This category is not part of your business.')
       const photo = parseImage(item.photo)
       await client.query(
         `INSERT INTO app_items
-           (id, name, category_id, category_name, base_unit, pack_size, track_stock, cost_price_kobo,
+           (id, business_id, name, category_id, category_name, base_unit, pack_size, track_stock, cost_price_kobo,
             reorder_level, price_points, archived, photo_url)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NULL)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name, category_id = EXCLUDED.category_id, category_name = EXCLUDED.category_name,
            base_unit = EXCLUDED.base_unit, pack_size = EXCLUDED.pack_size, track_stock = EXCLUDED.track_stock,
            cost_price_kobo = EXCLUDED.cost_price_kobo, reorder_level = EXCLUDED.reorder_level,
-           price_points = EXCLUDED.price_points, archived = EXCLUDED.archived, updated_at = now()`,
+           price_points = EXCLUDED.price_points, archived = EXCLUDED.archived, updated_at = now()
+         WHERE app_items.business_id = EXCLUDED.business_id`,
         [
           item.id,
+          actor.businessId,
           item.name,
           item.categoryId,
           categoryName,
@@ -409,26 +416,27 @@ async function applyAction(client, action, actor) {
         ],
       )
       if (photo) {
-        await client.query('UPDATE app_items SET photo_url = NULL WHERE id = $1', [item.id])
+        await client.query('UPDATE app_items SET photo_url = NULL WHERE id = $1 AND business_id = $2', [item.id, actor.businessId])
         await client.query(
-          `INSERT INTO app_item_images (item_id, content_type, image_data)
-           VALUES ($1, $2, $3)
+          `INSERT INTO app_item_images (item_id, business_id, content_type, image_data)
+           VALUES ($1, $2, $3, $4)
            ON CONFLICT (item_id) DO UPDATE SET
              content_type = EXCLUDED.content_type, image_data = EXCLUDED.image_data, updated_at = now()`,
-          [item.id, photo.contentType, photo.bytes],
+          [item.id, actor.businessId, photo.contentType, photo.bytes],
         )
       } else if (item.photo === '') {
-        await client.query('DELETE FROM app_item_images WHERE item_id = $1', [item.id])
-        await client.query('UPDATE app_items SET photo_url = NULL WHERE id = $1', [item.id])
+        await client.query('DELETE FROM app_item_images WHERE item_id = $1 AND business_id = $2', [item.id, actor.businessId])
+        await client.query('UPDATE app_items SET photo_url = NULL WHERE id = $1 AND business_id = $2', [item.id, actor.businessId])
       } else if (item.photo?.startsWith('https://')) {
-        await client.query('DELETE FROM app_item_images WHERE item_id = $1', [item.id])
-        await client.query('UPDATE app_items SET photo_url = $2 WHERE id = $1', [item.id, item.photo])
+        await client.query('DELETE FROM app_item_images WHERE item_id = $1 AND business_id = $2', [item.id, actor.businessId])
+        await client.query('UPDATE app_items SET photo_url = $2 WHERE id = $1 AND business_id = $3', [item.id, item.photo, actor.businessId])
       }
       const saved = await client.query(
         `SELECT i.*, EXISTS(SELECT 1 FROM app_item_images im WHERE im.item_id = i.id) AS has_image
-         FROM app_items i WHERE i.id = $1`,
-        [item.id],
+         FROM app_items i WHERE i.id = $1 AND i.business_id = $2`,
+        [item.id, actor.businessId],
       )
+      if (!saved.rowCount) throw httpError(409, 'This item ID is already used by another business. Please retry.')
       const mapped = mapItem(saved.rows[0])
       const oldValue = old ? JSON.stringify({ name: old.name, pricePoints: old.price_points, reorderLevel: old.reorder_level }) : 'Not available'
       const newValue = JSON.stringify({ name: mapped.name, pricePoints: mapped.pricePoints, reorderLevel: mapped.reorderLevel })
@@ -444,39 +452,39 @@ async function applyAction(client, action, actor) {
           mapped.photo ? 'Image present' : 'No image',
         )
       }
-      await publish(client, 'item', mapped.id, mapped)
+      await publish(client, actor.businessId, 'item', mapped.id, mapped)
       return mapped
     }
     case 'item.archive': {
       if (!['owner', 'manager'].includes(actor.role)) throw httpError(403, 'Only owners and managers can archive inventory.')
       const id = validate(z.string().min(1).max(128), payload.itemId)
-      const old = await getItem(client, id, { lock: true })
+      const old = await getItem(client, id, actor.businessId, { lock: true })
       if (!old) throw httpError(404, 'Item not found.')
-      await client.query('UPDATE app_items SET archived = true, updated_at = now() WHERE id = $1', [id])
+      await client.query('UPDATE app_items SET archived = true, updated_at = now() WHERE id = $1 AND business_id = $2', [id, actor.businessId])
       await logActivity(client, actor, 'Archived item', old.name, 'Active', 'Archived')
       const saved = await client.query(
         `SELECT i.*, EXISTS(SELECT 1 FROM app_item_images im WHERE im.item_id = i.id) AS has_image
-         FROM app_items i WHERE i.id = $1`,
-        [id],
+         FROM app_items i WHERE i.id = $1 AND i.business_id = $2`,
+        [id, actor.businessId],
       )
       const item = mapItem(saved.rows[0])
-      await publish(client, 'item', id, item)
+      await publish(client, actor.businessId, 'item', id, item)
       return item
     }
     case 'item.delete': {
       if (!['owner', 'manager'].includes(actor.role)) throw httpError(403, 'Only owners and managers can remove inventory.')
       const id = validate(z.string().min(1).max(128), payload.itemId)
-      const old = await getItem(client, id, { lock: true })
+      const old = await getItem(client, id, actor.businessId, { lock: true })
       if (!old) throw httpError(404, 'Item not found.')
       const history = await client.query(
-        `SELECT EXISTS (SELECT 1 FROM app_sale_items WHERE item_id = $1)
-          OR EXISTS (SELECT 1 FROM app_stock_events WHERE item_id = $1) AS has_history`,
-        [id],
+        `SELECT EXISTS (SELECT 1 FROM app_sale_items WHERE item_id = $1 AND business_id = $2)
+          OR EXISTS (SELECT 1 FROM app_stock_events WHERE item_id = $1 AND business_id = $2) AS has_history`,
+        [id, actor.businessId],
       )
       if (history.rows[0].has_history) throw httpError(409, 'This item has history. Archive it instead to preserve records.')
-      await client.query('DELETE FROM app_items WHERE id = $1', [id])
+      await client.query('DELETE FROM app_items WHERE id = $1 AND business_id = $2', [id, actor.businessId])
       await logActivity(client, actor, 'Deleted item', old.name, 'Available', 'Deleted')
-      await publish(client, 'item.deleted', id, { id })
+      await publish(client, actor.businessId, 'item.deleted', id, { id })
       return { id }
     }
     case 'category.save': {
@@ -486,15 +494,23 @@ async function applyAction(client, action, actor) {
         name: z.string().trim().min(1).max(120),
         sortOrder: z.number().int().min(0).max(100_000),
       }), payload.category)
-      const old = await client.query('SELECT id FROM app_categories WHERE id = $1', [category.id])
-      await client.query(
-        `INSERT INTO app_categories (id, name, sort_order)
-         VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET
-           name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, updated_at = now()`,
-        [category.id, category.name, category.sortOrder],
+      const old = await client.query(
+        'SELECT id FROM app_categories WHERE id = $1 AND business_id = $2',
+        [category.id, actor.businessId],
       )
+      await client.query(
+        `INSERT INTO app_categories (business_id, id, name, sort_order)
+         VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, updated_at = now()`,
+        [actor.businessId, category.id, category.name, category.sortOrder],
+      )
+      const savedCategory = await client.query(
+        'SELECT id FROM app_categories WHERE id = $1 AND business_id = $2',
+        [category.id, actor.businessId],
+      )
+      if (!savedCategory.rowCount) throw httpError(409, 'This category ID is already used by another business.')
       await logActivity(client, actor, old.rowCount ? 'Updated category' : 'Created category', category.name)
-      await publish(client, 'category', category.id, category)
+      await publish(client, actor.businessId, 'category', category.id, category)
       return category
     }
     case 'sale.confirm': {
@@ -514,7 +530,7 @@ async function applyAction(client, action, actor) {
       for (const line of lines) {
         if (line.totalKobo !== line.quantity * line.unitPriceKobo) throw httpError(400, `Invalid total for ${line.itemName}.`)
         total += line.totalKobo
-        const item = await getItem(client, line.itemId)
+        const item = await getItem(client, line.itemId, actor.businessId)
         if (!item || item.archived) throw httpError(409, `${line.itemName} is no longer available.`)
         quantities.set(line.itemId, (quantities.get(line.itemId) ?? 0) + line.quantity * line.baseUnitsDeducted)
       }
@@ -522,19 +538,19 @@ async function applyAction(client, action, actor) {
       const saleId = action.clientUuid
       const createdAt = dateString(action.createdAtClient)
       await client.query(
-        `INSERT INTO app_sales (id, client_uuid, staff_id, staff_name, total_kobo, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [saleId, action.clientUuid, actor.id, actor.name, total, createdAt],
+        `INSERT INTO app_sales (id, business_id, client_uuid, staff_id, staff_name, total_kobo, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [saleId, actor.businessId, action.clientUuid, actor.id, actor.name, total, createdAt],
       )
       const saleLines = []
       for (const [index, line] of lines.entries()) {
         const lineId = `${saleId}:${index}`
         await client.query(
           `INSERT INTO app_sale_items
-             (id, sale_id, item_id, item_name, price_point_id, price_point_label,
+             (id, business_id, sale_id, item_id, item_name, price_point_id, price_point_label,
               quantity, unit_price_kobo, base_units_deducted, total_kobo)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [lineId, saleId, line.itemId, line.itemName, line.pricePointId, line.pricePointLabel,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [lineId, actor.businessId, saleId, line.itemId, line.itemName, line.pricePointId, line.pricePointLabel,
             line.quantity, line.unitPriceKobo, line.baseUnitsDeducted, line.totalKobo],
         )
         saleLines.push({ ...line })
@@ -549,7 +565,7 @@ async function applyAction(client, action, actor) {
         lines: saleLines,
       }
       for (const [itemId, quantity] of [...quantities].sort(([left], [right]) => left.localeCompare(right))) {
-        const item = await getItem(client, itemId)
+        const item = await getItem(client, itemId, actor.businessId)
         if (item.track_stock) {
           await recordStockEvent(client, {
             action,
@@ -562,7 +578,7 @@ async function applyAction(client, action, actor) {
         }
       }
       await logActivity(client, actor, 'Confirmed sale', saleId, 'Pending sync', `${lines.length} line items · ${total} kobo`)
-      await publish(client, 'sale', saleId, sale)
+      await publish(client, actor.businessId, 'sale', saleId, sale)
       return sale
     }
     case 'sale.void': {
@@ -573,19 +589,19 @@ async function applyAction(client, action, actor) {
       }), payload)
       const saleResult = await client.query(
         `SELECT id, staff_id, staff_name, total_kobo, created_at, voided_at, void_reason
-         FROM app_sales WHERE id = $1 FOR UPDATE`,
-        [input.saleId],
+         FROM app_sales WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        [input.saleId, actor.businessId],
       )
       const saleRow = saleResult.rows[0]
       if (!saleRow) throw httpError(404, 'Sale not found.')
       if (saleRow.voided_at) return { id: saleRow.id, status: 'voided', voidReason: saleRow.void_reason }
       const quantities = await client.query(
         `SELECT item_id, item_name, SUM(quantity * base_units_deducted)::integer AS quantity
-         FROM app_sale_items WHERE sale_id = $1 GROUP BY item_id, item_name ORDER BY item_id`,
-        [saleRow.id],
+         FROM app_sale_items WHERE sale_id = $1 AND business_id = $2 GROUP BY item_id, item_name ORDER BY item_id`,
+        [saleRow.id, actor.businessId],
       )
       for (const row of quantities.rows) {
-        const item = await getItem(client, row.item_id)
+        const item = await getItem(client, row.item_id, actor.businessId)
         if (item?.track_stock) {
           await recordStockEvent(client, {
             action,
@@ -599,15 +615,15 @@ async function applyAction(client, action, actor) {
       }
       const reason = input.reason || 'No reason supplied'
       await client.query(
-        'UPDATE app_sales SET voided_at = now(), void_reason = $2 WHERE id = $1',
-        [saleRow.id, reason],
+        'UPDATE app_sales SET voided_at = now(), void_reason = $2 WHERE id = $1 AND business_id = $3',
+        [saleRow.id, reason, actor.businessId],
       )
       await logActivity(client, actor, 'Voided sale', saleRow.id, 'Active', reason)
       const items = await client.query(
         `SELECT item_id, item_name, price_point_id, price_point_label, quantity,
                 unit_price_kobo, base_units_deducted, total_kobo
-         FROM app_sale_items WHERE sale_id = $1 ORDER BY id`,
-        [saleRow.id],
+         FROM app_sale_items WHERE sale_id = $1 AND business_id = $2 ORDER BY id`,
+        [saleRow.id, actor.businessId],
       )
       const sale = {
         id: saleRow.id,
@@ -628,7 +644,7 @@ async function applyAction(client, action, actor) {
           totalKobo: Number(row.total_kobo),
         })),
       }
-      await publish(client, 'sale', sale.id, sale)
+      await publish(client, actor.businessId, 'sale', sale.id, sale)
       return sale
     }
     case 'stock.purchase':
@@ -641,7 +657,7 @@ async function applyAction(client, action, actor) {
         unitCostKobo: z.number().int().nonnegative().optional(),
       }), payload)
       if (action.type === 'stock.purchase' && input.quantityDelta < 1) throw httpError(400, 'Stock purchases must add a positive quantity.')
-      const item = await getItem(client, input.itemId)
+      const item = await getItem(client, input.itemId, actor.businessId)
       if (!item) throw httpError(404, 'Item not found.')
       if (!item.track_stock) throw httpError(409, 'Stock tracking is disabled for this item.')
       const movement = await recordStockEvent(client, {
@@ -658,8 +674,8 @@ async function applyAction(client, action, actor) {
         actor,
         action.type === 'stock.purchase' ? 'Added stock' : 'Adjusted stock',
         item.name,
-        `${(await currentQuantity(client, item.id)) - input.quantityDelta} units`,
-        `${await currentQuantity(client, item.id)} units · ${input.description}`,
+        `${(await currentQuantity(client, item.id, actor.businessId)) - input.quantityDelta} units`,
+        `${await currentQuantity(client, item.id, actor.businessId)} units · ${input.description}`,
       )
       return movement
     }
@@ -668,23 +684,28 @@ async function applyAction(client, action, actor) {
       const settings = validate(z.record(z.string(), z.unknown()), payload.settings)
       for (const [key, value] of Object.entries(settings)) {
         await client.query(
-          `INSERT INTO app_settings (key, value) VALUES ($1, $2)
-           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
-          [key, value],
+          `INSERT INTO app_settings (business_id, key, value) VALUES ($1, $2, $3)
+           ON CONFLICT (business_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+          [actor.businessId, key, value],
         )
+        if (key === 'businessName' && typeof value === 'string') {
+          await client.query('UPDATE app_businesses SET name = $2 WHERE id = $1', [actor.businessId, value])
+        }
       }
       await logActivity(client, actor, 'Updated business settings', 'Business settings')
-      await publish(client, 'settings', 'business', settings)
+      await publish(client, actor.businessId, 'settings', 'business', settings)
       return settings
     }
     case 'notifications.read': {
       if (!['owner', 'manager'].includes(actor.role)) throw httpError(403, 'Only owners and managers can mark notifications read.')
       const updated = await client.query(
         `UPDATE app_notifications SET read_at = COALESCE(read_at, now())
-         WHERE read_at IS NULL RETURNING id, audit_entry_id, action, what, user_name, user_role, created_at, read_at`,
+         WHERE read_at IS NULL AND business_id = $1
+         RETURNING id, audit_entry_id, action, what, user_name, user_role, created_at, read_at`,
+        [actor.businessId],
       )
       for (const row of updated.rows) {
-        await publish(client, 'notification', row.id, {
+        await publish(client, actor.businessId, 'notification', row.id, {
           id: row.id,
           auditEntryId: row.audit_entry_id,
           action: row.action,
@@ -707,12 +728,12 @@ async function pushOne(actionInput, actor) {
   return await withTransaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [action.clientUuid])
     const existing = await client.query(
-      'SELECT user_id, accepted, result, rejection_reason FROM app_sync_actions WHERE client_uuid = $1',
+      'SELECT business_id, user_id, accepted, result, rejection_reason FROM app_sync_actions WHERE client_uuid = $1',
       [action.clientUuid],
     )
     if (existing.rowCount) {
       const prior = existing.rows[0]
-      if (prior.user_id !== actor.id) {
+      if (prior.business_id !== actor.businessId || prior.user_id !== actor.id) {
         return { clientUuid: action.clientUuid, accepted: false, error: 'This action ID is already associated with another account.' }
       }
       return {
@@ -728,9 +749,9 @@ async function pushOne(actionInput, actor) {
       const value = await applyAction(client, action, actor)
       await client.query(
         `INSERT INTO app_sync_actions
-           (client_uuid, device_id, user_id, action_type, payload, accepted, result, created_at_client)
-         VALUES ($1, $2, $3, $4, $5, true, $6, $7)`,
-        [action.clientUuid, action.deviceId, actor.id, action.type, actionPayloadForStorage(action.payload), value, dateString(action.createdAtClient)],
+           (client_uuid, business_id, device_id, user_id, action_type, payload, accepted, result, created_at_client)
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)`,
+        [action.clientUuid, actor.businessId, action.deviceId, actor.id, action.type, actionPayloadForStorage(action.payload), value, dateString(action.createdAtClient)],
       )
       await client.query('RELEASE SAVEPOINT action_attempt')
       return { clientUuid: action.clientUuid, accepted: true, result: value }
@@ -739,9 +760,9 @@ async function pushOne(actionInput, actor) {
       await client.query('ROLLBACK TO SAVEPOINT action_attempt')
       await client.query(
         `INSERT INTO app_sync_actions
-           (client_uuid, device_id, user_id, action_type, payload, accepted, rejection_reason, created_at_client)
-         VALUES ($1, $2, $3, $4, $5, false, $6, $7)`,
-        [action.clientUuid, action.deviceId, actor.id, action.type, actionPayloadForStorage(action.payload), message, dateString(action.createdAtClient)],
+           (client_uuid, business_id, device_id, user_id, action_type, payload, accepted, rejection_reason, created_at_client)
+         VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8)`,
+        [action.clientUuid, actor.businessId, action.deviceId, actor.id, action.type, actionPayloadForStorage(action.payload), message, dateString(action.createdAtClient)],
       )
       await client.query('RELEASE SAVEPOINT action_attempt')
       return { clientUuid: action.clientUuid, accepted: false, error: message }
@@ -761,16 +782,21 @@ async function readSnapshot(client, actor) {
     activityRows,
     notificationRows,
   ] = await Promise.all([
-    client.query('SELECT id, name, email, username, role, is_active, created_at FROM app_users ORDER BY created_at'),
-    client.query('SELECT id, name, sort_order FROM app_categories ORDER BY sort_order, name'),
+    client.query('SELECT id, name, email, username, role, is_active, created_at, business_id FROM app_users WHERE business_id = $1 ORDER BY created_at', [actor.businessId]),
+    client.query('SELECT id, name, sort_order FROM app_categories WHERE business_id = $1 ORDER BY sort_order, name', [actor.businessId]),
     client.query(
-      `SELECT i.*, EXISTS(SELECT 1 FROM app_item_images im WHERE im.item_id = i.id) AS has_image
-       FROM app_items i ORDER BY i.name`,
+      `SELECT i.*, EXISTS(
+         SELECT 1 FROM app_item_images im WHERE im.item_id = i.id AND im.business_id = i.business_id
+       ) AS has_image
+       FROM app_items i WHERE i.business_id = $1 ORDER BY i.name`,
+      [actor.businessId],
     ),
     client.query(
       `SELECT e.id, e.item_id, i.name AS item_name, e.event_type, e.quantity_delta, e.description,
               e.actor_user_id, e.unit_cost_kobo, e.created_at_server
-       FROM app_stock_events e JOIN app_items i ON i.id = e.item_id ORDER BY e.created_at_server`,
+       FROM app_stock_events e JOIN app_items i ON i.id = e.item_id
+       WHERE e.business_id = $1 AND i.business_id = $1 ORDER BY e.created_at_server`,
+      [actor.businessId],
     ),
     client.query(
       `SELECT s.id, s.staff_id, s.staff_name, s.total_kobo, s.created_at, s.cleared_at, s.voided_at, s.void_reason,
@@ -780,26 +806,28 @@ async function readSnapshot(client, actor) {
                 'unitPriceKobo', si.unit_price_kobo, 'baseUnitsDeducted', si.base_units_deducted,
                 'totalKobo', si.total_kobo
               ) ORDER BY si.id) FILTER (WHERE si.id IS NOT NULL), '[]') AS lines
-       FROM app_sales s LEFT JOIN app_sale_items si ON si.sale_id = s.id
+       FROM app_sales s LEFT JOIN app_sale_items si
+         ON si.sale_id = s.id AND si.business_id = s.business_id
        WHERE s.cleared_at IS NULL
+         AND s.business_id = $3
          AND ($1::boolean OR s.staff_id = $2)
        GROUP BY s.id ORDER BY s.created_at DESC`,
-      [isManager, actor.id],
+      [isManager, actor.id, actor.businessId],
     ),
-    client.query('SELECT key, value FROM app_settings'),
+    client.query('SELECT key, value FROM app_settings WHERE business_id = $1', [actor.businessId]),
     client.query(
       `SELECT id, user_id, user_name, user_role, action, what, old_value, new_value, created_at
-       FROM app_activity_log WHERE $1::boolean ORDER BY created_at DESC`,
-      [actor.role === 'owner'],
+       FROM app_activity_log WHERE business_id = $2 AND $1::boolean ORDER BY created_at DESC`,
+      [actor.role === 'owner', actor.businessId],
     ),
     client.query(
       `SELECT id, audit_entry_id, action, what, user_name, user_role, created_at, read_at
-       FROM app_notifications WHERE $1::boolean ORDER BY created_at DESC`,
-      [isManager],
+       FROM app_notifications WHERE business_id = $2 AND $1::boolean ORDER BY created_at DESC`,
+      [isManager, actor.businessId],
     ),
   ])
   const users = userRows.rows
-    .filter((row) => actor.role === 'owner' || row.role === 'staff' || row.id === actor.id)
+    .filter((row) => actor.role === 'owner' || actor.role === 'manager' && row.role === 'staff' || row.id === actor.id)
     .map(publicUser)
   const items = itemRows.rows.map(mapItem)
   const movements = movementRows.rows.map((row) => ({
@@ -878,8 +906,7 @@ app.get('/api/health', async (_request, response) => {
 })
 
 app.get('/api/auth/setup-status', async (_request, response) => {
-  const result = await pool.query("SELECT EXISTS (SELECT 1 FROM app_users WHERE role = 'owner') AS owner_exists")
-  response.json({ ownerExists: result.rows[0].owner_exists })
+  response.json({ ownerExists: false })
 })
 
 app.post('/api/auth/register-owner', authLimiter, async (request, response) => {
@@ -888,36 +915,39 @@ app.post('/api/auth/register-owner', authLimiter, async (request, response) => {
     email: z.string().trim().email().max(254),
     businessName: z.string().trim().min(1).max(160),
   }), request.body)
-  const user = await withTransaction(async (client) => {
-    await client.query('SELECT pg_advisory_xact_lock(827364)')
-    const ownerCheck = await client.query("SELECT 1 FROM app_users WHERE role = 'owner' LIMIT 1")
-    if (ownerCheck.rowCount) throw httpError(409, 'The business owner account has already been created.')
+  const registration = await withTransaction(async (client) => {
+    const businessId = crypto.randomUUID()
+    await client.query(
+      'INSERT INTO app_businesses (id, name) VALUES ($1, $2)',
+      [businessId, input.businessName],
+    )
     const result = await client.query(
-      `INSERT INTO app_users (id, name, email, username, password_hash, role)
-       VALUES ($1, $2, $3, $4, $5, 'owner')
-       RETURNING id, name, email, username, role, is_active, created_at`,
-      [crypto.randomUUID(), input.name, input.email.toLowerCase(), input.username, await bcrypt.hash(input.password, 12)],
+      `INSERT INTO app_users (id, business_id, name, email, username, password_hash, role)
+       VALUES ($1, $2, $3, $4, $5, $6, 'owner')
+       RETURNING id, business_id, name, email, username, role, is_active, created_at`,
+      [crypto.randomUUID(), businessId, input.name, input.email.toLowerCase(), input.username, await bcrypt.hash(input.password, 12)],
     )
-    await logActivity(client, publicUser(result.rows[0]), 'Registered business', input.businessName, 'Not available', input.businessName)
+    const owner = { ...result.rows[0], business_name: input.businessName }
+    const user = publicUser(owner)
+    await logActivity(client, user, 'Registered business', input.businessName, 'Not available', input.businessName)
     await client.query(
-      `INSERT INTO app_settings (key, value) VALUES ('businessName', $1)
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
-      [JSON.stringify(input.businessName)],
+      `INSERT INTO app_settings (business_id, key, value) VALUES ($1, 'businessName', $2)
+       ON CONFLICT (business_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+      [businessId, JSON.stringify(input.businessName)],
     )
     await client.query(
-      `INSERT INTO app_categories (id, name, sort_order) VALUES
-         ('spirits', 'Spirits', 1),
-         ('beer', 'Beer', 2),
-         ('soft-drinks', 'Soft Drinks', 3),
-         ('food', 'Food', 4),
-         ('other', 'Other', 5)
-       ON CONFLICT (id) DO NOTHING`,
+      `INSERT INTO app_categories (business_id, id, name, sort_order) VALUES
+         ($1, $2, 'Spirits', 1),
+         ($1, $3, 'Beer', 2),
+         ($1, $4, 'Soft Drinks', 3),
+         ($1, $5, 'Food', 4),
+         ($1, $6, 'Other', 5)`,
+      [businessId, ...['spirits', 'beer', 'soft-drinks', 'food', 'other'].map((id) => `${businessId}:${id}`)],
     )
-    return result.rows[0]
+    return { user, businessId }
   })
-  const safe = publicUser(user)
-  await createSession(response, safe)
-  response.status(201).json({ user: safe })
+  await createSession(response, registration.user)
+  response.status(201).json({ user: registration.user })
 })
 
 app.post('/api/auth/login', authLimiter, async (request, response) => {
@@ -927,8 +957,10 @@ app.post('/api/auth/login', authLimiter, async (request, response) => {
     password: z.string().min(1).max(128),
   }), request.body)
   const result = await pool.query(
-    `SELECT id, name, email, username, password_hash, role, is_active, created_at
-     FROM app_users WHERE lower(username) = lower($1) OR lower(email) = lower($1) LIMIT 1`,
+    `SELECT u.id, u.name, u.email, u.username, u.password_hash, u.role, u.is_active, u.created_at,
+            u.business_id, b.name AS business_name
+     FROM app_users u JOIN app_businesses b ON b.id = u.business_id
+     WHERE lower(u.username) = lower($1) OR lower(u.email) = lower($1) LIMIT 1`,
     [input.identifier],
   )
   const row = result.rows[0]
@@ -948,8 +980,9 @@ app.post('/api/auth/refresh', authLimiter, async (request, response) => {
   const user = await withTransaction(async (client) => {
     const result = await client.query(
       `SELECT r.id AS refresh_id, u.id, u.name, u.email, u.username, u.role,
-              u.is_active, u.created_at
+              u.is_active, u.created_at, u.business_id, b.name AS business_name
        FROM app_refresh_tokens r JOIN app_users u ON u.id = r.user_id
+       JOIN app_businesses b ON b.id = u.business_id
        WHERE r.token_hash = $1 AND r.revoked_at IS NULL AND r.expires_at > now()
        FOR UPDATE OF r`,
       [refreshHash(oldToken)],
@@ -984,9 +1017,10 @@ app.get('/api/me', authenticate, (request, response) => response.json({ user: re
 
 app.get('/api/users', authenticate, permit('owner', 'manager'), async (request, response) => {
   const result = await pool.query(
-    `SELECT id, name, email, username, role, is_active, created_at FROM app_users
-     WHERE $1::boolean OR role = 'staff' OR id = $2 ORDER BY created_at`,
-    [request.user.role === 'owner', request.user.id],
+    `SELECT id, name, email, username, role, is_active, created_at, business_id
+     FROM app_users WHERE business_id = $1 AND ($2::boolean OR role = 'staff' OR id = $3)
+     ORDER BY created_at`,
+    [request.user.businessId, request.user.role === 'owner', request.user.id],
   )
   response.json(result.rows.map(publicUser))
 })
@@ -998,14 +1032,14 @@ app.post('/api/users', authenticate, permit('owner', 'manager'), async (request,
   if (request.user.role === 'manager' && input.role !== 'staff') throw httpError(403, 'Managers can only create staff accounts.')
   const created = await withTransaction(async (client) => {
     const result = await client.query(
-      `INSERT INTO app_users (id, name, email, username, password_hash, role)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, name, email, username, role, is_active, created_at`,
-      [crypto.randomUUID(), input.name, input.email || null, input.username, await bcrypt.hash(input.password, 12), input.role],
+      `INSERT INTO app_users (id, business_id, name, email, username, password_hash, role)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, business_id, name, email, username, role, is_active, created_at`,
+      [crypto.randomUUID(), request.user.businessId, input.name, input.email || null, input.username, await bcrypt.hash(input.password, 12), input.role],
     )
-    const user = publicUser(result.rows[0])
+    const user = publicUser({ ...result.rows[0], business_name: request.user.businessName })
     await logActivity(client, request.user, 'Created staff account', user.name, 'Not available', user.role)
-    await publish(client, 'user', user.id, user)
+    await publish(client, request.user.businessId, 'user', user.id, user)
     return user
   })
   response.status(201).json(created)
@@ -1020,8 +1054,8 @@ app.patch('/api/users/:id', authenticate, permit('owner', 'manager'), async (req
   }).refine((value) => Object.keys(value).length > 0), request.body)
   const updated = await withTransaction(async (client) => {
     const existing = await client.query(
-      'SELECT id, name, username, role, is_active FROM app_users WHERE id = $1 FOR UPDATE',
-      [request.params.id],
+      'SELECT id, name, username, role, is_active FROM app_users WHERE id = $1 AND business_id = $2 FOR UPDATE',
+      [request.params.id, request.user.businessId],
     )
     if (!existing.rowCount) throw httpError(404, 'User not found.')
     if (request.user.role === 'manager' && existing.rows[0].role !== 'staff') {
@@ -1042,11 +1076,11 @@ app.patch('/api/users/:id', authenticate, permit('owner', 'manager'), async (req
         fields.push(`password_hash = $${values.length}`)
       }
     }
-    values.push(request.params.id)
+    values.push(request.params.id, request.user.businessId)
     const result = await client.query(
       `UPDATE app_users SET ${fields.join(', ')}, updated_at = now()
-       WHERE id = $${values.length}
-       RETURNING id, name, email, username, role, is_active, created_at`,
+       WHERE id = $${values.length - 1} AND business_id = $${values.length}
+       RETURNING id, business_id, name, email, username, role, is_active, created_at`,
       values,
     )
     if (changes.isActive === false) {
@@ -1055,7 +1089,7 @@ app.patch('/api/users/:id', authenticate, permit('owner', 'manager'), async (req
         [request.params.id],
       )
     }
-    const user = publicUser(result.rows[0])
+    const user = publicUser({ ...result.rows[0], business_name: request.user.businessName })
     await logActivity(
       client,
       request.user,
@@ -1064,7 +1098,7 @@ app.patch('/api/users/:id', authenticate, permit('owner', 'manager'), async (req
       JSON.stringify({ name: existing.rows[0].name, username: existing.rows[0].username, isActive: existing.rows[0].is_active }),
       JSON.stringify({ name: user.name, username: user.username, isActive: user.isActive }),
     )
-    await publish(client, 'user', user.id, user)
+    await publish(client, request.user.businessId, 'user', user.id, user)
     return user
   })
   response.json(updated)
@@ -1075,27 +1109,35 @@ app.delete('/api/users/:id', authenticate, permit('owner', 'manager'), async (re
   await withTransaction(async (client) => {
     const target = await client.query(
       `SELECT id, name, email, username, role, is_active, created_at
-       FROM app_users WHERE id = $1 FOR UPDATE`,
-      [request.params.id],
+       , business_id FROM app_users WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+      [request.params.id, request.user.businessId],
     )
     if (!target.rowCount) throw httpError(404, 'User not found.')
     if (request.user.role === 'manager' && target.rows[0].role !== 'staff') {
       throw httpError(403, 'Managers can only manage staff accounts.')
     }
-    await client.query('UPDATE app_users SET is_active = false, updated_at = now() WHERE id = $1', [request.params.id])
+    await client.query(
+      'UPDATE app_users SET is_active = false, updated_at = now() WHERE id = $1 AND business_id = $2',
+      [request.params.id, request.user.businessId],
+    )
     await client.query(
       'UPDATE app_refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL',
       [request.params.id],
     )
-    const user = publicUser({ ...target.rows[0], is_active: false })
+    const user = publicUser({ ...target.rows[0], is_active: false, business_name: request.user.businessName })
     await logActivity(client, request.user, 'Deactivated staff account', user.name, 'Active', 'Inactive')
-    await publish(client, 'user', user.id, user)
+    await publish(client, request.user.businessId, 'user', user.id, user)
   })
   response.status(204).end()
 })
 
-app.get('/api/items/:id/image', async (request, response) => {
-  const result = await pool.query('SELECT content_type, image_data FROM app_item_images WHERE item_id = $1', [request.params.id])
+app.get('/api/items/:id/image', authenticate, async (request, response) => {
+  const result = await pool.query(
+    `SELECT im.content_type, im.image_data
+     FROM app_item_images im JOIN app_items i ON i.id = im.item_id
+     WHERE im.item_id = $1 AND im.business_id = $2 AND i.business_id = $2`,
+    [request.params.id, request.user.businessId],
+  )
   if (!result.rowCount) throw httpError(404, 'Item image not found.')
   response.set('Content-Type', result.rows[0].content_type)
   response.set('Cache-Control', 'private, max-age=3600')
@@ -1135,11 +1177,14 @@ app.get('/api/sync/pull', authenticate, async (request, response) => {
   const result = await withTransaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(827365)')
     const activeUser = await client.query(
-      'SELECT id, is_active FROM app_users WHERE id = $1',
-      [request.user.id],
+      'SELECT id, is_active FROM app_users WHERE id = $1 AND business_id = $2',
+      [request.user.id, request.user.businessId],
     )
     if (!activeUser.rows[0]?.is_active) throw httpError(401, 'This account is inactive. Contact the owner.')
-    const highWater = await client.query('SELECT COALESCE(MAX(id), 0)::text AS id FROM app_change_log')
+    const highWater = await client.query(
+      'SELECT COALESCE(MAX(id), 0)::text AS id FROM app_change_log WHERE business_id = $1',
+      [request.user.businessId],
+    )
     const cursor = new Date().toISOString()
     if (!since) {
       return {
@@ -1150,28 +1195,28 @@ app.get('/api/sync/pull', authenticate, async (request, response) => {
       }
     }
     const filter = `
-      AND (entity_type <> 'activity' OR $2 = 'owner')
-      AND (entity_type <> 'notification' OR $2 IN ('owner', 'manager'))
-      AND (entity_type <> 'user' OR $2 = 'owner' OR payload->>'id' = $3
-        OR ($2 = 'manager' AND payload->>'role' = 'staff'))
-      AND (entity_type NOT IN ('sale', 'sale.cleared') OR $2 IN ('owner', 'manager') OR payload->>'staffId' = $3)`
+      AND (entity_type <> 'activity' OR $3 = 'owner')
+      AND (entity_type <> 'notification' OR $3 IN ('owner', 'manager'))
+      AND (entity_type <> 'user' OR $3 = 'owner' OR payload->>'id' = $4
+        OR ($3 = 'manager' AND payload->>'role' = 'staff'))
+      AND (entity_type NOT IN ('sale', 'sale.cleared') OR $3 IN ('owner', 'manager') OR payload->>'staffId' = $4)`
     const changes = after
       ? await client.query(
         `SELECT id, entity_type, entity_id, payload, created_at
-         FROM app_change_log WHERE id > $1::bigint ${filter}
+         FROM app_change_log WHERE business_id = $1 AND id > $2::bigint ${filter}
          ORDER BY id LIMIT 5000`,
-        [after, request.user.role, request.user.id],
+        [request.user.businessId, after, request.user.role, request.user.id],
       )
       : await client.query(
         `SELECT id, entity_type, entity_id, payload, created_at
-         FROM app_change_log WHERE created_at > $1 ${filter}
+         FROM app_change_log WHERE business_id = $1 AND created_at > $2 ${filter}
          ORDER BY id LIMIT 5000`,
-        [new Date(since), request.user.role, request.user.id],
+        [request.user.businessId, new Date(since), request.user.role, request.user.id],
       )
     const changeId = changes.rowCount === 5000
       ? String(changes.rows[changes.rowCount - 1].id)
       : highWater.rows[0].id
-    const settings = await client.query('SELECT key, value FROM app_settings')
+    const settings = await client.query('SELECT key, value FROM app_settings WHERE business_id = $1', [request.user.businessId])
     return {
       changes: changes.rows.map((row) => ({
         id: String(row.id),
@@ -1189,17 +1234,22 @@ app.get('/api/sync/pull', authenticate, async (request, response) => {
   response.json(result)
 })
 
-app.post('/api/notifications/read', authenticate, permit('owner', 'manager'), async (_request, response) => {
-  await pool.query('UPDATE app_notifications SET read_at = now() WHERE read_at IS NULL')
+app.post('/api/notifications/read', authenticate, permit('owner', 'manager'), async (request, response) => {
+  await pool.query(
+    'UPDATE app_notifications SET read_at = now() WHERE read_at IS NULL AND business_id = $1',
+    [request.user.businessId],
+  )
   response.status(204).end()
 })
 
-app.get('/api/sync/rejected', authenticate, permit('owner'), async (_request, response) => {
+app.get('/api/sync/rejected', authenticate, permit('owner'), async (request, response) => {
   const result = await pool.query(
     `SELECT a.client_uuid, a.device_id, a.user_id, u.name AS user_name, a.action_type,
             a.payload, a.rejection_reason, a.created_at_client, a.processed_at
      FROM app_sync_actions a JOIN app_users u ON u.id = a.user_id
-     WHERE a.accepted = false ORDER BY a.processed_at DESC LIMIT 1000`,
+     WHERE a.accepted = false AND a.business_id = $1
+     ORDER BY a.processed_at DESC LIMIT 1000`,
+    [request.user.businessId],
   )
   response.json(result.rows)
 })
@@ -1217,20 +1267,24 @@ app.post('/api/storage/clear-sales', authenticate, permit('owner'), async (reque
       throw httpError(400, 'Select valid calendar dates.')
     }
   }
-  const auth = await pool.query('SELECT password_hash FROM app_users WHERE id = $1 AND is_active', [request.user.id])
+  const auth = await pool.query(
+    'SELECT password_hash FROM app_users WHERE id = $1 AND business_id = $2 AND is_active',
+    [request.user.id, request.user.businessId],
+  )
   if (!auth.rowCount || !(await bcrypt.compare(input.password, auth.rows[0].password_hash))) {
     throw httpError(401, 'The owner password could not be verified.')
   }
   const result = await withTransaction(async (client) => {
     const cleared = await client.query(
       `UPDATE app_sales SET cleared_at = now()
-       WHERE cleared_at IS NULL
+       WHERE business_id = $3
+         AND cleared_at IS NULL
          AND (created_at AT TIME ZONE 'UTC')::date BETWEEN $1::date AND $2::date
        RETURNING id, staff_id`,
-      [input.from, input.to],
+      [input.from, input.to, request.user.businessId],
     )
     for (const sale of cleared.rows) {
-      await publish(client, 'sale.cleared', sale.id, { id: sale.id, staffId: sale.staff_id })
+      await publish(client, request.user.businessId, 'sale.cleared', sale.id, { id: sale.id, staffId: sale.staff_id })
     }
     await logActivity(client, request.user, 'Cleared sales records', `${input.from} to ${input.to}`, `${cleared.rowCount} records`, 'Report generated before clearing')
     return cleared.rowCount

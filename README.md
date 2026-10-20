@@ -33,7 +33,9 @@ npm run dev
 
 The Vite development server proxies `/api` to `http://localhost:3001`. Set `VITE_DATA_MODE=api` in `.env` for the frontend to use the API and IndexedDB in development. Without that setting, development uses the seeded mock repository. In production, API mode is the default.
 
-Open the app, create the initial owner account, then use the owner/manager staff screen to create staff accounts. Staff do not have public registration. Owner registration also creates starter inventory categories. The first login and owner setup require an internet connection; a previously authenticated user can use their cached data offline while their offline session remains valid.
+Open the app and register a business owner account. Multiple businesses can register in the same deployment; each gets its own inventory, staff, sales, settings, notifications and activity history. Usernames and email addresses must be unique across the entire deployment, so each account needs distinct login details. Owners can create staff accounts from the owner/manager staff screen; staff do not have public registration. Owner registration also creates starter inventory categories. The first login and owner setup require an internet connection; a previously authenticated user can use their cached data offline while their offline session remains valid.
+
+The tenancy migration creates a legacy business and assigns existing `app_*` records to it without deleting them. Review and back up the target database before applying it. The migration runs as part of `npm run db:migrate`; do not run that command against an existing database until you have confirmed the target and are ready to apply the schema change. Each signed-in business uses a separate browser IndexedDB database, so cached data and queued changes are not shared when a device switches businesses.
 
 ## Environment variables
 
@@ -77,6 +79,8 @@ Existing prototype data in browser local storage is not automatically imported i
 api/[...path].js             Vercel API entry point
 server/app.js                Express routes, authentication, authorization and sync
 server/schema.sql            New app_* PostgreSQL tables and append-only trigger
+server/migrations/002-business-tenancy.sql
+                              Business isolation columns and legacy data backfill
 server/db.js                 PostgreSQL pool and transaction helper
 server/migrate.js            Explicit schema migration command
 src/data/localDatabase.ts    Dexie/IndexedDB schema

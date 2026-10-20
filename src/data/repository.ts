@@ -31,7 +31,7 @@ export interface InventoryRepository {
   getStockLevels: () => Promise<StockLevel[]>
   listUsers: () => Promise<User[]>
   authenticateUser: (username: string, password: string) => Promise<User | undefined>
-  createUser: (user: Pick<User, 'name' | 'username' | 'password'> & Partial<Pick<User, 'email' | 'role' | 'isActive'>>) => Promise<User>
+  createUser: (user: Pick<User, 'name' | 'username' | 'password'> & Partial<Pick<User, 'email' | 'role' | 'isActive'>> & { businessName?: string }) => Promise<User>
   updateUser: (id: string, changes: Pick<User, 'name' | 'username'> & Partial<Pick<User, 'password' | 'isActive'>>) => Promise<User>
   deleteUser: (id: string) => Promise<void>
   getSettings: () => Promise<AppSettings>

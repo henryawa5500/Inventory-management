@@ -4,9 +4,15 @@ import { pool } from './db.js'
 
 try {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL must be set before running migrations.')
-  const schema = await readFile(new URL('./schema.sql', import.meta.url), 'utf8')
-  await pool.query(schema)
-  console.log('D’Queens app_* tables and append-only activity trigger are ready.')
+  const migrations = [
+    { file: './schema.sql', label: 'Base application schema' },
+    { file: './migrations/002-business-tenancy.sql', label: 'Business tenancy and data-preserving backfill' },
+  ]
+  for (const migration of migrations) {
+    const sql = await readFile(new URL(migration.file, import.meta.url), 'utf8')
+    await pool.query(sql)
+    console.log(`${migration.label} is ready.`)
+  }
 } finally {
   await pool.end()
 }

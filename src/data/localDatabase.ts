@@ -61,8 +61,8 @@ class DQueensDatabase extends Dexie {
   settings!: Table<LocalSetting, string>
   meta!: Table<LocalMeta, string>
 
-  constructor() {
-    super('dqueens-offline')
+  constructor(businessId?: string) {
+    super(businessId ? `dqueens-offline-${businessId}` : 'dqueens-offline')
     this.version(1).stores({
       users: 'id, username, role, isActive',
       items: 'id, name, categoryId, archived',
@@ -81,4 +81,44 @@ class DQueensDatabase extends Dexie {
   }
 }
 
-export const localDatabase = new DQueensDatabase()
+export let localDatabase = new DQueensDatabase()
+
+export async function activateBusinessDatabase(businessId: string, userId?: string) {
+  if (!businessId) throw new Error('The account response did not include a business ID.')
+  const currentBusinessId = localStorage.getItem('dqueens-business-id')
+  if (currentBusinessId === businessId && localDatabase.name === `dqueens-offline-${businessId}`) return
+
+  const legacyDatabase = localDatabase
+  const legacySessionId = localStorage.getItem('bar-user')
+  const legacyUser = currentBusinessId === null && legacyDatabase.name === 'dqueens-offline' && legacySessionId
+    ? await legacyDatabase.users.get(legacySessionId)
+    : undefined
+  const shouldCopyLegacyData = Boolean(
+    legacyUser
+    && legacyUser.id === userId
+    && (!legacyUser.businessId || legacyUser.businessId === businessId),
+  )
+  const businessDatabase = new DQueensDatabase(businessId)
+
+  if (shouldCopyLegacyData) {
+    await Promise.all([
+      businessDatabase.users.bulkPut(await legacyDatabase.users.toArray()),
+      businessDatabase.items.bulkPut(await legacyDatabase.items.toArray()),
+      businessDatabase.categories.bulkPut(await legacyDatabase.categories.toArray()),
+      businessDatabase.sales.bulkPut(await legacyDatabase.sales.toArray()),
+      businessDatabase.saleItems.bulkPut(await legacyDatabase.saleItems.toArray()),
+      businessDatabase.stockEvents.bulkPut(await legacyDatabase.stockEvents.toArray()),
+      businessDatabase.notifications.bulkPut(await legacyDatabase.notifications.toArray()),
+      businessDatabase.activityLog.bulkPut(await legacyDatabase.activityLog.toArray()),
+      businessDatabase.syncQueue.bulkPut(await legacyDatabase.syncQueue.toArray()),
+      businessDatabase.rejectedActions.bulkPut(await legacyDatabase.rejectedActions.toArray()),
+      businessDatabase.itemImages.bulkPut(await legacyDatabase.itemImages.toArray()),
+      businessDatabase.settings.bulkPut(await legacyDatabase.settings.toArray()),
+      businessDatabase.meta.bulkPut(await legacyDatabase.meta.toArray()),
+    ])
+  }
+
+  legacyDatabase.close()
+  localDatabase = businessDatabase
+  localStorage.setItem('dqueens-business-id', businessId)
+}

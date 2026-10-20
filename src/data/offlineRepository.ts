@@ -11,7 +11,7 @@ import type {
 } from '../domain/types'
 import { calculateCartLineTotal, getStockFromMovements, isLowStock } from '../domain/stock'
 import { ApiError, apiRequest, clearServerSession } from './apiClient'
-import { localDatabase, type SyncQueueRecord } from './localDatabase'
+import { activateBusinessDatabase, localDatabase, type SyncQueueRecord } from './localDatabase'
 import {
   createQueuedAction,
   dispatchSyncState,
@@ -529,6 +529,7 @@ export const offlineRepository: InventoryRepository & {
         method: 'POST',
         body: JSON.stringify({ identifier, password }),
       }, false)
+      await activateBusinessDatabase(response.user.businessId ?? '', response.user.id)
       await localDatabase.users.put(response.user)
       localStorage.setItem(SESSION_KEY, response.user.id)
       localStorage.setItem(SESSION_UNTIL_KEY, String(Date.now() + 7 * 24 * 60 * 60 * 1000))
@@ -551,9 +552,10 @@ export const offlineRepository: InventoryRepository & {
           username: input.username,
           email: input.email,
           password: input.password,
-          businessName: 'D’Queens',
+          businessName: input.businessName?.trim() || 'D’Queens',
         }),
       }, false)
+      await activateBusinessDatabase(response.user.businessId ?? '', response.user.id)
       await localDatabase.users.put(response.user)
       localStorage.setItem(SESSION_KEY, response.user.id)
       localStorage.setItem(SESSION_UNTIL_KEY, String(Date.now() + 7 * 24 * 60 * 60 * 1000))
@@ -688,7 +690,10 @@ export async function logoutOfflineSession(preserveLocalData = false) {
   const pending = await localDatabase.syncQueue.where('status').equals('pending').count()
   if (pending) throw new Error('Sync pending changes before signing out to avoid losing unsynced work.')
   if (navigator.onLine) await clearServerSession()
-  if (!preserveLocalData) await localDatabase.delete()
+  if (!preserveLocalData) {
+    await localDatabase.delete()
+    localStorage.removeItem('dqueens-business-id')
+  }
   localStorage.removeItem(SESSION_KEY)
   localStorage.removeItem(SESSION_UNTIL_KEY)
 }

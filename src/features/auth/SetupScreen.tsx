@@ -125,7 +125,7 @@ export function SetupScreen({
 
       <p className="mb-5 text-sm text-[var(--muted)]">
         {registrationAvailable
-          ? 'Register the business owner account. The owner creates staff accounts after signing in.'
+          ? 'Register your business and create its owner account. You can add staff accounts after signing in.'
           : 'Public staff registration is disabled. Ask the business owner or manager to create your staff account.'}
       </p>
 
@@ -217,7 +217,7 @@ export function SetupScreen({
 
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         <Button type="submit" fullWidth disabled={submitting}>
-          {submitting ? 'Creating account…' : 'Create owner account'}
+          {submitting ? 'Registering business…' : 'Register business'}
           {!submitting && <ArrowRight size={18} className="ml-2" />}
         </Button>
       </form>}

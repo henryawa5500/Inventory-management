@@ -86,7 +86,7 @@ export function LoginScreen({
               onClick={onCreateAccount}
               className="min-h-11 text-sm font-medium text-[var(--text-color)] underline underline-offset-4"
             >
-              Create owner account
+              Register your business
             </button>
             <p className="mt-1 text-xs text-[var(--muted)]">Staff accounts are created by the owner.</p>
           </div>

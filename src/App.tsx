@@ -57,6 +57,7 @@ function AppShell() {
           if (navigator.onLine && localStorage.getItem('bar-user')) {
             try {
               await repository.syncNow()
+              await initializeOfflineStorage()
             } catch (error) {
               setStartupError(error instanceof Error ? error.message : 'Unable to sync with the server.')
             }
@@ -83,10 +84,10 @@ function AppShell() {
           return
         }
         localStorage.removeItem('bar-user')
-        const ownerExists = await repository.getSetupStatus()
+        const ownerExists = repository.syncNow ? true : await repository.getSetupStatus()
         if (!cancelled) {
-          setOwnerRegistrationAvailable(!ownerExists)
-          setShowSetup(!ownerExists)
+          setOwnerRegistrationAvailable(Boolean(repository.syncNow) || !ownerExists)
+          setShowSetup(!repository.syncNow && !ownerExists)
         }
       } catch (error) {
         if (!cancelled) {
@@ -175,14 +176,17 @@ function AppShell() {
   }) => {
     const created = await repository.createUser({
       name: payload.name,
+      businessName: payload.businessName,
       email: payload.email,
       username: payload.username,
       password: payload.password,
       role: 'owner',
       isActive: true,
     })
-    await repository.saveSettings({ businessName: payload.businessName.trim() })
-    setOwnerRegistrationAvailable(false)
+    if (!repository.syncNow) {
+      await repository.saveSettings({ businessName: payload.businessName.trim() })
+    }
+    setOwnerRegistrationAvailable(Boolean(repository.syncNow))
     setShowSetup(false)
     setStartupError('')
     persistUser(created)

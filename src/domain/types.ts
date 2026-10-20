@@ -34,6 +34,8 @@ export type Item = {
 
 export type User = {
   id: string
+  businessId?: string
+  businessName?: string
   name: string
   email?: string
   username: string
